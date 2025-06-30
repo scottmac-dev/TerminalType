@@ -3,16 +3,16 @@ use crossterm::{
     terminal::{enable_raw_mode, disable_raw_mode},
     execute,
 };
-use rand::prelude::IndexedMutRandom;
+use rand::prelude::IndexedRandom;
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
     widgets::{Paragraph, Block, Borders},
     layout::{Layout, Constraint, Direction},
     style::{Style, Modifier, Color},
-    text::{Span},
+    text::{Line, Text, Span},
 };
-use std::{io::{stdout, Write}, time::Instant};
+use std::{io::{stdout}, time::Instant};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
@@ -24,8 +24,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let words_list = vec!["hello", "world", "type", "rust", "juice", "the", "lazy", "dog", "jumped", "over", "sleeping", "fox", "disgrace", "snap", "crop", "pot", "sound", "amber", "code", "intelligence", "chicken", "soup", "tower", "dough", "normal", "speed", "better", "minute", "best", "ever", "to", "and", "when", "by", "learn", "code", "gain", "buffer", "money", "start", "stop", "write", "food", "gym", "vector", "monkey", "through", "threw", "undo"];
-
-    let target_words: Vec<&str> = (0..50).map(|_| *words_list.choose_mut(&mut rand::rng()).unwrap().collect());
+    let mut rng = rand::rng();
+    let target_words: Vec<&str> = (0..50).map(|_| *words_list.choose(&mut rng).unwrap()).collect();
 
     let mut typed = String::new();
     let mut word_index = 0;
@@ -33,10 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut start_time = None;
 
     loop {
-        let mut spans = vec![];
+        let mut lines = vec![];
 
         for(i, word) in target_words.iter().enumerate() {
-            let mut span_vec = vec![];
+            let mut word_spans = vec![];
             for(j,c) in word.chars().enumerate() {
                 let style = if i < word_index || (i == word_index && j < char_index){
                     let typed_char = typed.chars().nth(i * 100 + j);
@@ -50,16 +50,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     Style::default().fg(Color::DarkGray)
                 };
-                span_vec.push(Span::styled(c.to_string(), style));
+                word_spans.push(Span::styled(c.to_string(), style));
             }
-            span_vec.push(Span::raw(" "));
-            spans.push(Span::from(span_vec));
+            word_spans.push(Span::raw(" "));
+            lines.push(Line::from(word_spans));
         }
 
         terminal.draw(|f| {
             let size = f.area();
             let block = Block::default().title("Terminal Type TUI").borders(Borders::ALL);
-            let paragraph = Paragraph::new(spans).block(block);
+            let paragraph = Paragraph::new(lines).block(block);
             f.render_widget(paragraph, size);
         })?;
 
@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             typed.pop();
                         }
                     },
-                    KeyCode::Tab | KeyCode::Enter | KeyCode::Space => {
+                    KeyCode::Tab | KeyCode::Enter | KeyCode::Char(' ') => {
                         word_index += 1;
                         char_index = 0;
                     },
