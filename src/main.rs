@@ -33,28 +33,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut start_time = None;
 
     loop {
-        let mut lines = vec![];
+        let mut spans = vec![];
+        let typed_words: Vec<&str> = typed.split_whitespace().collect();
 
         for(i, word) in target_words.iter().enumerate() {
-            let mut word_spans = vec![];
+            let typed_word = typed_words.get(i).unwrap_or(&"");
+            
             for(j,c) in word.chars().enumerate() {
-                let style = if i < word_index || (i == word_index && j < char_index){
-                    let typed_char = typed.chars().nth(i * 100 + j);
-                    match typed_char {
-                        Some(tc) if tc == c => Style::default().fg(Color::White),
-                        Some(_) => Style::default().fg(Color::Red),
-                        _ => Style::default().fg(Color::Gray),
+                let typed_char = typed_word.chars().nth(j);
+                let style = match typed_char {
+                    Some(tc) if tc == c => Style::default().fg(Color::White),
+                    Some(_) => Style::default().fg(Color::Red),
+                    None => {
+                        if i == word_index && j == char_index {
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::UNDERLINED)
+                        } else {
+                            Style::default().fg(Color::DarkGray)
+                        }
                     }
-                } else if i == word_index && j == char_index {
-                    Style::default().add_modifier(Modifier::UNDERLINED)
-                } else {
-                    Style::default().fg(Color::DarkGray)
                 };
-                word_spans.push(Span::styled(c.to_string(), style));
+                spans.push(Span::styled(c.to_string(), style));
             }
-            word_spans.push(Span::raw(" "));
-            lines.push(Line::from(word_spans));
+            spans.push(Span::raw(" "));
         }
+
+        let lines = vec![Line::from(spans)];
 
         terminal.draw(|f| {
             let size = f.area();
