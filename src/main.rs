@@ -99,9 +99,14 @@ impl App {
                     KeyCode::Char(c) => {
                         self.typed.push(c);
                         self.char_index += 1;
-                        if self.char_index >= self.target_words[self.word_index].len() {
+                        if let Some(word) = self.target_words.get(self.word_index) {
+                            if self.char_index >= word.len() {
                             // validate incorrect length logic
+                            }
+                        } else {
+                            self.exit = true;
                         }
+                        
                     },
                     KeyCode::Backspace => {
                         if self.char_index > 0 {
@@ -112,6 +117,10 @@ impl App {
                     KeyCode::Tab | KeyCode::Enter | KeyCode::Char(' ') => {
                         self.word_index += 1;
                         self.char_index = 0;
+
+                        if self.word_index >= self.target_words.len() {
+                            self.exit = true;
+                        }
                     },
                     _ => {}
 
@@ -171,7 +180,7 @@ impl Widget for &App {
 
 fn main() -> io::Result<()>{
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let app_result = App::new().run(&mut terminal);
     ratatui::restore();
     app_result
 }
