@@ -3,30 +3,54 @@ use rand::prelude::IndexedRandom;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::Stylize,
+    style::{Style, Stylize, Color, Modifier},
     symbols::border,
-    text::{Line, Text},
+    text::{Line, Text, Span},
     widgets::{Paragraph, Block, Widget},
     DefaultTerminal, Frame,
 };
-use std::{io, time::Instant};
+use std::{io, time::{Instant, Duration}};
+
+const ROUND_TIME_SECS: u64 = 30;
 
 #[derive(Debug, Default)]
 pub struct App {
-    word_count: u8,
-    exit: bool,
-    wpm: u8,
-    countdown: u8,
-    char_index: u8,
-    word_index: u8,
+    pub word_count: usize,
+    pub char_index: usize,
+    pub word_index: usize,
+    pub typed: String,
+    pub target_words: Vec<String>,
+    pub start_time: Option<Instant>,
+    pub time_remaining: u64,
+    pub exit: bool,
 }
-
 impl App {
-    // run main app until user quits
+    pub fn new() -> Self {
+        let words_list = vec!["hello", "world", "type", "rust", "juice", "the", "lazy", "dog", "jumped", "over", "sleeping", "fox", "disgrace", "snap", "crop", "pot", "sound", "amber", "code", "intelligence", "chicken", "soup", "tower", "dough", "normal", "speed", "better", "minute", "best", "ever", "to", "and", "when", "by", "learn", "code", "gain", "buffer", "money", "start", "stop", "write", "food", "gym", "vector", "monkey", "through", "threw", "undo"];
+        let mut rng = rand::rng();
+        let target_words = (0..50)
+            .map(|_| words_list.choose(&mut rng).unwrap().to_string()).collect();
+
+        Self {
+            word_count: 0,
+            char_index: 0,
+            word_index: 0,
+            typed: String::new(),
+            target_words,
+            start_time: None,
+            time_remaining: ROUND_TIME_SECS,
+            exit: false,
+        }
+    }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
             terminal.draw(|f| self.draw(f))?;
             self.handle_events()?;
+        };
+        if let Some(start) = self.start_time {
+            let elapsed = start.elapsed().as_secs_f64();
+            let wpm = (self.word_index as f64 / elapsed) * 60.0;
+            println!("\nWPM: {:.2}", wpm);
         }
         Ok(())
     }
@@ -34,28 +58,55 @@ impl App {
         f.render_widget(self, f.area());
     }
     fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
+        if self.start_time.is_none() && event::poll(Duration::from_millis(10))? {
+            if let Event::Key(key_event) = event::read()? {
+                if key_event.kind == KeyEventKind::Press {
+                    self.start_time = Some(Instant::now());
+                    self.handle_key_event(key_event);
+                }
             }
-            _ => {}
-        };
-        Ok(())
+        } else {
+            if let Some(start) = self.start_time {
+                let elapsed = start.elapsed().as_secs();
+                if elapsed >= ROUND_TIME_SECS {
+                    self.exit = true;
+                    return Ok(());
+                } else {
+                    self.time_remaining = ROUND_TIME_SECS - elapsed;
+                }
+            }
+            if event::poll(Duration::from_millis(50))? {
+                if let Event::Key(key_event) = event::read()? {
+                    if key_event.kind == KeyEventKind::Press {
+                        self.handle_key_event(key_event);
+                    }
+                }
+            }
+        }
+       Ok(())
     }
     fn handle_key_event(&mut self, key_event: KeyEvent) {
+        use crossterm::event::KeyModifiers;
+
+        if self.start_time.is_none(){
+            self.start_time = Some(Instant::now());
+        }
+
         match key_event.code {
-                    KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => break,
+                    KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.exit = true;
+                    }
                     KeyCode::Char(c) => {
-                        typed.push(c);
+                        self.typed.push(c);
                         self.char_index += 1;
-                        if self.char_index >= target_words[word_index].len() {
+                        if self.char_index >= self.target_words[self.word_index].len() {
                             // validate incorrect length logic
                         }
                     },
                     KeyCode::Backspace => {
                         if self.char_index > 0 {
                             self.char_index -= 1;
-                            typed.pop();
+                            self.typed.pop();
                         }
                     },
                     KeyCode::Tab | KeyCode::Enter | KeyCode::Char(' ') => {
@@ -69,52 +120,23 @@ impl App {
 }
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" TerminalType ").bold());
+        let title = Line::from(" TerminalType: Type To Begin ").bold();
         let instructions = Line::from(vec![
-            " Type To Begin ".blue().bold(),
-            " Quit ".into(),
-            "<Ctrl + C> ".blue().bold(),
+            Span::raw(" Time Remaining:"),
+            Span::styled(self.time_remaining.to_string(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::raw("  |  Words Typed:"),
+            Span::styled(self.word_index.to_string(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("  |  Quit:"),
+            Span::styled("<Ctrl + C> ", Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
         ]);
         let block = Block::bordered()
             .title(title.centered())
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
-        let stats = Text::from(vec![Line::from(vec![
-                "Time: ".into(),
-                self.countdown.to_string().yellow(),
-                " Word Count: ".into(),
-                self.word_count.to_string().yellow(),
-        ])]);
-        Paragraph::new(stats)
-            .centered()
-            .block(block)
-            .render(area, buf)
-    }
-}
-
-
-
-fn main() -> io::Result<()>{
-    
-    let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
-    ratatui::restore();
-    app_result
-
-    let words_list = vec!["hello", "world", "type", "rust", "juice", "the", "lazy", "dog", "jumped", "over", "sleeping", "fox", "disgrace", "snap", "crop", "pot", "sound", "amber", "code", "intelligence", "chicken", "soup", "tower", "dough", "normal", "speed", "better", "minute", "best", "ever", "to", "and", "when", "by", "learn", "code", "gain", "buffer", "money", "start", "stop", "write", "food", "gym", "vector", "monkey", "through", "threw", "undo"];
-    let mut rng = rand::rng();
-    let target_words: Vec<&str> = (0..50).map(|_| *words_list.choose(&mut rng).unwrap()).collect();
-
-    let mut typed = String::new();
-    let mut word_index = 0;
-    let mut char_index = 0;
-    let mut start_time = None;
-
-    loop {
         let mut spans = vec![];
-        let typed_words: Vec<&str> = typed.split_whitespace().collect();
+        let typed_words: Vec<&str> = self.typed.split_whitespace().collect();
 
-        for(i, word) in target_words.iter().enumerate() {
+        for(i, word) in self.target_words.iter().enumerate() {
             let typed_word = typed_words.get(i).unwrap_or(&"");
             
             for(j,c) in word.chars().enumerate() {
@@ -123,7 +145,7 @@ fn main() -> io::Result<()>{
                     Some(tc) if tc == c => Style::default().fg(Color::White),
                     Some(_) => Style::default().fg(Color::Red),
                     None => {
-                        if i == word_index && j == char_index {
+                        if i == self.word_index && j == self.char_index {
                             Style::default()
                                 .fg(Color::Yellow)
                                 .add_modifier(Modifier::UNDERLINED)
@@ -137,59 +159,19 @@ fn main() -> io::Result<()>{
             spans.push(Span::raw(" "));
         }
 
-        let lines = vec![Line::from(spans)];
-
-        terminal.draw(|f| {
-            let size = f.area();
-            let block = Block::default().title("Terminal Type TUI").borders(Borders::ALL);
-            let paragraph = Paragraph::new(lines).block(block);
-            f.render_widget(paragraph, size);
-        })?;
-
-        if event::poll(std::time::Duration::from_millis(200))? {
-            if let Event::Key(key) = event::read()? {
-                if start_time.is_none(){
-                    start_time = Some(Instant::now());
-                }
-
-                match key.code {
-                    KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => break,
-                    KeyCode::Char(c) => {
-                        typed.push(c);
-                        char_index += 1;
-                        if char_index >= target_words[word_index].len() {
-                            // validate incorrect length logic
-                        }
-                    },
-                    KeyCode::Backspace => {
-                        if char_index > 0 {
-                            char_index -= 1;
-                            typed.pop();
-                        }
-                    },
-                    KeyCode::Tab | KeyCode::Enter | KeyCode::Char(' ') => {
-                        word_index += 1;
-                        char_index = 0;
-                    },
-                    _ => {}
-                }
-
-                if word_index >= target_words.len() {
-                    break;
-                }
-            }
-        }
+        let paragraph = Paragraph::new(Text::from(vec![Line::from(spans)]))
+            .block(block)
+            .centered();
+        
+        paragraph.render(area, buf);
     }
+}
 
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), crossterm::terminal::LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
 
-    if let Some(start) = start_time {
-        let elapsed = start.elapsed().as_secs_f64();
-        let wpm = (word_index as f64 / elapsed) * 60.0;
-        println!("\nWPM: {:.2}", wpm);
-    }
 
-    Ok(())
+fn main() -> io::Result<()>{
+    let mut terminal = ratatui::init();
+    let app_result = App::default().run(&mut terminal);
+    ratatui::restore();
+    app_result
 }
