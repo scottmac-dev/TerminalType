@@ -10,7 +10,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 use std::{io, time::{Instant, Duration}};
-
+use unicode_width::UnicodeWidthStr;
 const ROUND_TIME_SECS: u64 = 30;
 
 #[derive(Debug, Default)]
@@ -123,8 +123,14 @@ impl App {
                         }
                     },
                     _ => {}
-
         }
+    }
+    fn typed_index(&self, word_idx: usize, char_idx: usize) -> usize {
+        let mut index = 0;
+        for i in 0..word_idx {
+            index += self.target_words[i].len() + 1; // accounts for space
+        }
+        index + char_idx
     }
 }
 impl Widget for &App {
@@ -142,25 +148,23 @@ impl Widget for &App {
             .title(title.centered())
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
+        
         let mut spans = vec![];
-        let typed_words: Vec<&str> = self.typed.split_whitespace().collect();
 
         for(i, word) in self.target_words.iter().enumerate() {
-            let typed_word = typed_words.get(i).unwrap_or(&"");
-            
             for(j,c) in word.chars().enumerate() {
-                let typed_char = typed_word.chars().nth(j);
-                let style = match typed_char {
-                    Some(tc) if tc == c => Style::default().fg(Color::White),
-                    Some(_) => Style::default().fg(Color::Red),
-                    None => {
-                        if i == self.word_index && j == self.char_index {
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::UNDERLINED)
-                        } else {
-                            Style::default().fg(Color::DarkGray)
-                        }
+                let style = if i == self.word_index && j == self.char_index {
+                    // current
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::UNDERLINED)
+                } else {
+                    let typed_index = self.typed_index(i, j);
+                    let typed_char = self.typed.chars().nth(typed_index);
+                    match typed_char {
+                        Some(tc) if tc == c => Style::default().fg(Color::White), // correct
+                        Some(_) => Style::default().fg(Color::Red), // incorrect
+                        None => Style::default().fg(Color::DarkGray),
                     }
                 };
                 spans.push(Span::styled(c.to_string(), style));
@@ -168,9 +172,30 @@ impl Widget for &App {
             spans.push(Span::raw(" "));
         }
 
-        let paragraph = Paragraph::new(Text::from(vec![Line::from(spans)]))
+        let mut lines: Vec<Line> = vec![];
+        let mut current_line = Vec::new();
+        let mut current_width = 0;
+        let max_width = area.width as usize - 4;
+
+        for span in spans {
+            let span_width = span.content.width();
+            if current_width + span_width > max_width {
+                lines.push(Line::from(current_line));
+                current_line = Vec::new();
+                current_width = 0;
+            }
+            current_width += span_width;
+            current_line.push(span);
+        }
+
+        if !current_line.is_empty() {
+            lines.push(Line::from(current_line));
+        }
+
+        let paragraph = Paragraph::new(Text::from(lines))
             .block(block)
-            .centered();
+            .wrap(ratatui::widgets::Wrap {trim: false})
+            .alignment(ratatui::layout::Alignment::Left);
         
         paragraph.render(area, buf);
     }
