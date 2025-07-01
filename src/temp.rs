@@ -1,105 +1,27 @@
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::{
+    event::{self, Event, KeyCode},
+    terminal::{enable_raw_mode, disable_raw_mode},
+    execute,
+};
 use rand::prelude::IndexedRandom;
 use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::Stylize,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Paragraph, Block, Widget},
-    DefaultTerminal, Frame,
+    backend::CrosstermBackend,
+    Terminal,
+    widgets::{Paragraph, Block, Borders},
+    layout::{Layout, Constraint, Direction},
+    style::{Style, Modifier, Color},
+    text::{Line, Text, Span},
 };
-use std::{io, time::Instant};
+use std::{io::{stdout}, time::Instant};
 
-#[derive(Debug, Default)]
-pub struct App {
-    word_count: u8,
-    exit: bool,
-    wpm: u8,
-    countdown: u8,
-    char_index: u8,
-    word_index: u8,
-}
-
-impl App {
-    // run main app until user quits
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        while !self.exit {
-            terminal.draw(|f| self.draw(f))?;
-            self.handle_events()?;
-        }
-        Ok(())
-    }
-    fn draw(&self, f: &mut Frame){
-        f.render_widget(self, f.area());
-    }
-    fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            _ => {}
-        };
-        Ok(())
-    }
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-                    KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => break,
-                    KeyCode::Char(c) => {
-                        typed.push(c);
-                        self.char_index += 1;
-                        if self.char_index >= target_words[word_index].len() {
-                            // validate incorrect length logic
-                        }
-                    },
-                    KeyCode::Backspace => {
-                        if self.char_index > 0 {
-                            self.char_index -= 1;
-                            typed.pop();
-                        }
-                    },
-                    KeyCode::Tab | KeyCode::Enter | KeyCode::Char(' ') => {
-                        self.word_index += 1;
-                        self.char_index = 0;
-                    },
-                    _ => {}
-
-        }
-    }
-}
-impl Widget for &App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" TerminalType ").bold());
-        let instructions = Line::from(vec![
-            " Type To Begin ".blue().bold(),
-            " Quit ".into(),
-            "<Ctrl + C> ".blue().bold(),
-        ]);
-        let block = Block::bordered()
-            .title(title.centered())
-            .title_bottom(instructions.centered())
-            .border_set(border::THICK);
-        let stats = Text::from(vec![Line::from(vec![
-                "Time: ".into(),
-                self.countdown.to_string().yellow(),
-                " Word Count: ".into(),
-                self.word_count.to_string().yellow(),
-        ])]);
-        Paragraph::new(stats)
-            .centered()
-            .block(block)
-            .render(area, buf)
-    }
-}
-
-
-
-fn main() -> io::Result<()>{
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     
-    let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
-    ratatui::restore();
-    app_result
+    enable_raw_mode()?;
+    
+    let mut stdout = stdout();
+    execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
     let words_list = vec!["hello", "world", "type", "rust", "juice", "the", "lazy", "dog", "jumped", "over", "sleeping", "fox", "disgrace", "snap", "crop", "pot", "sound", "amber", "code", "intelligence", "chicken", "soup", "tower", "dough", "normal", "speed", "better", "minute", "best", "ever", "to", "and", "when", "by", "learn", "code", "gain", "buffer", "money", "start", "stop", "write", "food", "gym", "vector", "monkey", "through", "threw", "undo"];
     let mut rng = rand::rng();
