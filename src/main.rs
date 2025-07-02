@@ -2,11 +2,11 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use rand::prelude::IndexedRandom;
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Rect, Alignment},
     style::{Style, Stylize, Color, Modifier},
     symbols::border,
     text::{Line, Text, Span},
-    widgets::{Paragraph, Block, Widget, Borders},
+    widgets::{Paragraph, Block, Widget, Borders, BorderType},
     prelude::{Layout, Direction, Constraint},
     DefaultTerminal, Frame,
 };
@@ -60,28 +60,23 @@ impl App {
         f.render_widget(self, f.area());
     }
     fn handle_events(&mut self) -> io::Result<()> {
-        if self.start_time.is_none() && event::poll(Duration::from_millis(10))? {
+        if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key_event) = event::read()? {
                 if key_event.kind == KeyEventKind::Press {
-                    self.start_time = Some(Instant::now());
                     self.handle_key_event(key_event);
                 }
             }
-        } else {
+        }
+
+        // Main screen logic
+        if let CurrentScreen::Main = self.current_screen {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
                 if elapsed >= DEFAULT_ROUND_TIME_SEC {
                     self.current_screen = CurrentScreen::EndRound;
-                    return Ok(());
+                    self.start_time = None;
                 } else {
                     self.time_remaining = DEFAULT_ROUND_TIME_SEC - elapsed;
-                }
-            }
-            if event::poll(Duration::from_millis(50))? {
-                if let Event::Key(key_event) = event::read()? {
-                    if key_event.kind == KeyEventKind::Press {
-                        self.handle_key_event(key_event);
-                    }
                 }
             }
         }
@@ -226,15 +221,41 @@ impl App {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
+                Constraint::Percentage(70),
+                Constraint::Percentage(30),
             ])
             .split(area);
-        
-        let p1 = Paragraph::new("Top").block(Block::new().borders(Borders::ALL));
-        let p2 = Paragraph::new("Bottom").block(Block::new().borders(Borders::ALL));
-        p1.render(layout[0], buf);
-        p2.render(layout[1], buf);
+
+        let wpm = (self.word_index as usize / DEFAULT_ROUND_TIME_SEC as usize) * 60;
+
+        let top_block = Block::default()
+            .title("Summary")
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded);
+        let user_stats = Text::from(vec![
+            Line::from("Round Over!").centered(),
+            Line::from(""),
+            Line::from(Span::styled(
+                    format!("WPM: {}", wpm),
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            )).centered(),
+        ]);
+        let stats_paragraph = Paragraph::new(user_stats)
+            .block(top_block)
+            .alignment(Alignment::Center);
+        stats_paragraph.render(layout[0], buf);
+
+        let bottom_block = Block::default()
+            .title("Options")
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded);
+        let user_options = Text::from(vec![
+            Line::from("Press 'r' to play again or 'q' to quit").centered(),
+        ]);
+        let bottom_paragraph = Paragraph::new(user_options)
+            .block(bottom_block)
+            .alignment(Alignment::Center);
+        bottom_paragraph.render(layout[1], buf);
     }
 }
 impl Widget for &App {
