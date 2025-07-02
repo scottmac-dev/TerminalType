@@ -11,7 +11,14 @@ use ratatui::{
 };
 use std::{io, time::{Instant, Duration}};
 use unicode_width::UnicodeWidthStr;
-const ROUND_TIME_SECS: u64 = 30;
+
+const DEFAULT_ROUND_TIME_SEC: u64 = 30;
+
+#[derive(Debug, Default)]
+pub enum CurrentScreen {
+    #[default] Main,
+    EndRound,
+}
 
 #[derive(Debug, Default)]
 pub struct App {
@@ -22,6 +29,7 @@ pub struct App {
     pub start_time: Option<Instant>,
     pub time_remaining: u64,
     pub exit: bool,
+    pub current_screen: CurrentScreen,
 }
 impl App {
     pub fn new() -> Self {
@@ -35,8 +43,9 @@ impl App {
             typed_words: vec![String::new()],
             target_words,
             start_time: None,
-            time_remaining: ROUND_TIME_SECS,
+            time_remaining: DEFAULT_ROUND_TIME_SEC,
             exit: false,
+            current_screen: CurrentScreen::Main,
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -44,11 +53,6 @@ impl App {
             terminal.draw(|f| self.draw(f))?;
             self.handle_events()?;
         };
-        if let Some(start) = self.start_time {
-            let elapsed = start.elapsed().as_secs_f64();
-            let wpm = (self.word_index as f64 / elapsed) * 60.0;
-            println!("\nWPM: {:.2}", wpm);
-        }
         Ok(())
     }
     fn draw(&self, f: &mut Frame){
@@ -65,11 +69,11 @@ impl App {
         } else {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
-                if elapsed >= ROUND_TIME_SECS {
+                if elapsed >= DEFAULT_ROUND_TIME_SEC {
                     self.exit = true;
                     return Ok(());
                 } else {
-                    self.time_remaining = ROUND_TIME_SECS - elapsed;
+                    self.time_remaining = DEFAULT_ROUND_TIME_SEC - elapsed;
                 }
             }
             if event::poll(Duration::from_millis(50))? {
@@ -147,10 +151,17 @@ impl Widget for &App {
             .title(title.centered())
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
+        let inner_area = block.inner(area);
         
-        let mut spans = vec![];
+        let mut lines: Vec<Line> = vec![];
+        let mut current_line = Vec::new();
+        let mut current_width = 0;
+        let max_width = inner_area.width as usize;
 
         for(i, word) in self.target_words.iter().enumerate() {
+            let mut word_spans = vec![];
+            let mut word_width = 0;
+
             for(j,c) in word.chars().enumerate() {
                 let style = if i == self.word_index && j == self.char_index {
                     // current
@@ -167,25 +178,21 @@ impl Widget for &App {
                         None => Style::default().fg(Color::DarkGray),
                     }
                 };
-                spans.push(Span::styled(c.to_string(), style));
+                let span = Span::styled(c.to_string(), style);
+                word_width += span.content.width();
+                word_spans.push(span);
             }
-            spans.push(Span::raw(" "));
-        }
+            word_spans.push(Span::raw(" "));
+            word_width += 1;
 
-        let mut lines: Vec<Line> = vec![];
-        let mut current_line = Vec::new();
-        let mut current_width = 0;
-        let max_width = area.width as usize - 4;
-
-        for span in spans {
-            let span_width = span.content.width();
-            if current_width + span_width > max_width {
+            if current_width + word_width > max_width {
                 lines.push(Line::from(current_line));
-                current_line = Vec::new();
+                current_line = vec![];
                 current_width = 0;
             }
-            current_width += span_width;
-            current_line.push(span);
+
+            current_line.extend(word_spans);
+            current_width += word_width;
         }
 
         if !current_line.is_empty() {
@@ -196,12 +203,10 @@ impl Widget for &App {
             .block(block)
             .wrap(ratatui::widgets::Wrap {trim: false})
             .alignment(ratatui::layout::Alignment::Left);
-        
+
         paragraph.render(area, buf);
     }
 }
-
-
 
 fn main() -> io::Result<()>{
     let mut terminal = ratatui::init();
