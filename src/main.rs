@@ -15,10 +15,9 @@ const ROUND_TIME_SECS: u64 = 30;
 
 #[derive(Debug, Default)]
 pub struct App {
-    pub word_count: usize,
     pub char_index: usize,
     pub word_index: usize,
-    pub typed: String,
+    pub typed_words: Vec<String>,
     pub target_words: Vec<String>,
     pub start_time: Option<Instant>,
     pub time_remaining: u64,
@@ -30,12 +29,10 @@ impl App {
         let mut rng = rand::rng();
         let target_words = (0..50)
             .map(|_| words_list.choose(&mut rng).unwrap().to_string()).collect();
-
         Self {
-            word_count: 0,
             char_index: 0,
             word_index: 0,
-            typed: String::new(),
+            typed_words: vec![String::new()],
             target_words,
             start_time: None,
             time_remaining: ROUND_TIME_SECS,
@@ -93,44 +90,46 @@ impl App {
         }
 
         match key_event.code {
-                    KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.exit = true;
-                    }
-                    KeyCode::Char(c) => {
-                        self.typed.push(c);
-                        self.char_index += 1;
-                        if let Some(word) = self.target_words.get(self.word_index) {
-                            if self.char_index >= word.len() {
-                            // validate incorrect length logic
-                            }
-                        } else {
-                            self.exit = true;
-                        }
-                        
-                    },
-                    KeyCode::Backspace => {
-                        if self.char_index > 0 {
-                            self.char_index -= 1;
-                            self.typed.pop();
-                        }
-                    },
-                    KeyCode::Tab | KeyCode::Enter | KeyCode::Char(' ') => {
-                        self.word_index += 1;
-                        self.char_index = 0;
-
-                        if self.word_index >= self.target_words.len() {
-                            self.exit = true;
-                        }
-                    },
-                    _ => {}
+            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.exit = true;
+            },
+            KeyCode::Char(' ') => {
+                if self.char_index > 0 {
+                    self.next_word();
+                }
+            },
+            KeyCode::Char(c) => {
+                if self.typed_words.len() <= self.word_index {
+                    self.typed_words.push(String::new());
+                }
+                self.typed_words[self.word_index].push(c);
+                self.char_index += 1;
+            },
+            KeyCode::Backspace => {
+                if self.char_index > 0 {
+                    self.char_index -= 1;
+                    self.typed_words[self.word_index].pop();
+                } else {
+                    self.prev_word()
+                }
+            },
+            _ => {}
         }
     }
-    fn typed_index(&self, word_idx: usize, char_idx: usize) -> usize {
-        let mut index = 0;
-        for i in 0..word_idx {
-            index += self.target_words[i].len() + 1; // accounts for space
+    fn next_word(&mut self){
+        self.word_index += 1;
+        self.char_index = 0;
+
+        if self.typed_words.len() <= self.word_index {
+            self.typed_words.push(String::new());
         }
-        index + char_idx
+    }
+    fn prev_word(&mut self){
+        if self.word_index > 0 {
+            self.typed_words.pop();
+            self.word_index -= 1;
+            self.char_index = self.typed_words[self.word_index].len();
+        }
     }
 }
 impl Widget for &App {
@@ -159,8 +158,9 @@ impl Widget for &App {
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::UNDERLINED)
                 } else {
-                    let typed_index = self.typed_index(i, j);
-                    let typed_char = self.typed.chars().nth(typed_index);
+                    let typed_char = self.typed_words
+                        .get(i)
+                        .and_then(|w| w.chars().nth(j));
                     match typed_char {
                         Some(tc) if tc == c => Style::default().fg(Color::White), // correct
                         Some(_) => Style::default().fg(Color::Red), // incorrect

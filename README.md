@@ -3,9 +3,8 @@ A touch typing terminal game built in rust for practicing and improving typing s
 
 Next Steps:
 - Accuracy tracking (right vs wrong keystrokes).
-- Underline current cursor bug.
 - WPM counter logic.
-- Gamified features
+- Gamified features (Top 10 runs | Animations)
 - Custom config {time, font, size}
 - Post game output stats
 - Replay instead of finish
