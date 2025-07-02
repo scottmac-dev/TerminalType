@@ -6,7 +6,8 @@ use ratatui::{
     style::{Style, Stylize, Color, Modifier},
     symbols::border,
     text::{Line, Text, Span},
-    widgets::{Paragraph, Block, Widget},
+    widgets::{Paragraph, Block, Widget, Borders},
+    prelude::{Layout, Direction, Constraint},
     DefaultTerminal, Frame,
 };
 use std::{io, time::{Instant, Duration}};
@@ -70,7 +71,7 @@ impl App {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
                 if elapsed >= DEFAULT_ROUND_TIME_SEC {
-                    self.exit = true;
+                    self.current_screen = CurrentScreen::EndRound;
                     return Ok(());
                 } else {
                     self.time_remaining = DEFAULT_ROUND_TIME_SEC - elapsed;
@@ -89,36 +90,52 @@ impl App {
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         use crossterm::event::KeyModifiers;
 
-        if self.start_time.is_none(){
-            self.start_time = Some(Instant::now());
-        }
+        match self.current_screen {
+            CurrentScreen::Main => {
+                if self.start_time.is_none(){
+                    self.start_time = Some(Instant::now());
+                }
 
-        match key_event.code {
-            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.exit = true;
-            },
-            KeyCode::Char(' ') => {
-                if self.char_index > 0 {
-                    self.next_word();
+                match key_event.code {
+                    KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                            self.exit = true;
+                    },
+                    KeyCode::Char(' ') => {
+                        if self.char_index > 0 {
+                            self.next_word();
+                        }
+                    },
+                    KeyCode::Char(c) => {
+                        if self.typed_words.len() <= self.word_index {
+                            self.typed_words.push(String::new());
+                        }
+                        self.typed_words[self.word_index].push(c);
+                        self.char_index += 1;
+                    },
+                    KeyCode::Backspace => {
+                        if self.char_index > 0 {
+                            self.char_index -= 1;
+                            self.typed_words[self.word_index].pop();
+                        } else {
+                            self.prev_word()
+                        }
+                    },
+                    _ => {}
                 }
-            },
-            KeyCode::Char(c) => {
-                if self.typed_words.len() <= self.word_index {
-                    self.typed_words.push(String::new());
+            }
+            CurrentScreen::EndRound => {
+                match key_event.code {
+                    KeyCode::Char('q') => {
+                        self.exit = true;
+                    }
+                    KeyCode::Char('r') => {
+                        *self = App::new() // reset to default
+                    }
+                    _ => {}
                 }
-                self.typed_words[self.word_index].push(c);
-                self.char_index += 1;
-            },
-            KeyCode::Backspace => {
-                if self.char_index > 0 {
-                    self.char_index -= 1;
-                    self.typed_words[self.word_index].pop();
-                } else {
-                    self.prev_word()
-                }
-            },
-            _ => {}
+            }
         }
+       
     }
     fn next_word(&mut self){
         self.word_index += 1;
@@ -135,9 +152,7 @@ impl App {
             self.char_index = self.typed_words[self.word_index].len();
         }
     }
-}
-impl Widget for &App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render_main(&self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" TerminalType: Type To Begin ").bold();
         let instructions = Line::from(vec![
             Span::raw(" Time Remaining:"),
@@ -205,6 +220,30 @@ impl Widget for &App {
             .alignment(ratatui::layout::Alignment::Left);
 
         paragraph.render(area, buf);
+
+    }
+    fn render_end_screen(&self, area: Rect, buf: &mut Buffer) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Percentage(50),
+                Constraint::Percentage(50),
+            ])
+            .split(area);
+        
+        let p1 = Paragraph::new("Top").block(Block::new().borders(Borders::ALL));
+        let p2 = Paragraph::new("Bottom").block(Block::new().borders(Borders::ALL));
+        p1.render(layout[0], buf);
+        p2.render(layout[1], buf);
+    }
+}
+impl Widget for &App {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        match self.current_screen {
+            CurrentScreen::Main => self.render_main(area, buf),
+            CurrentScreen::EndRound => self.render_end_screen(area, buf),
+
+        }
     }
 }
 
