@@ -1,24 +1,44 @@
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use rand::prelude::IndexedRandom;
 use ratatui::{
-    buffer::Buffer,
-    layout::{Rect, Alignment},
-    style::{Style, Stylize, Color, Modifier},
-    symbols::border,
-    text::{Line, Text, Span},
-    widgets::{Paragraph, Block, Widget, Borders, BorderType},
-    prelude::{Layout, Direction, Constraint},
     DefaultTerminal, Frame,
+    buffer::Buffer,
+    layout::{Alignment, Rect},
+    prelude::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style, Stylize},
+    symbols::border,
+    text::{Line, Span, Text},
+    widgets::{Block, BorderType, Borders, Paragraph, Widget},
 };
-use std::{io, time::{Instant, Duration}};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
 use unicode_width::UnicodeWidthStr;
-
-const DEFAULT_ROUND_TIME_SEC: u64 = 30;
 
 #[derive(Debug, Default)]
 pub enum CurrentScreen {
-    #[default] Main,
+    #[default]
+    Main,
     EndRound,
+}
+#[derive(Debug, Default)]
+pub enum RoundTime {
+    #[default]
+    Default,
+    Min,
+    TwoMin,
+    FiveMin,
+}
+
+#[derive(Debug)]
+pub struct RoundResult {
+    pub correct_words: usize,
+    pub total_chars: usize,
+    pub correct_chars: usize,
+    pub incorrect_chars: usize,
+    pub percentage_words: f64,
+    pub percentage_chars: f64,
 }
 
 #[derive(Debug, Default)]
@@ -31,32 +51,85 @@ pub struct App {
     pub time_remaining: u64,
     pub exit: bool,
     pub current_screen: CurrentScreen,
+    pub round_time: RoundTime,
 }
 impl App {
     pub fn new() -> Self {
-        let words_list = vec!["hello", "world", "type", "rust", "juice", "the", "lazy", "dog", "jumped", "over", "sleeping", "fox", "disgrace", "snap", "crop", "pot", "sound", "amber", "code", "intelligence", "chicken", "soup", "tower", "dough", "normal", "speed", "better", "minute", "best", "ever", "to", "and", "when", "by", "learn", "code", "gain", "buffer", "money", "start", "stop", "write", "food", "gym", "vector", "monkey", "through", "threw", "undo"];
+        let words_list = vec![
+            "hello",
+            "world",
+            "type",
+            "rust",
+            "juice",
+            "the",
+            "lazy",
+            "dog",
+            "jumped",
+            "over",
+            "sleeping",
+            "fox",
+            "disgrace",
+            "snap",
+            "crop",
+            "pot",
+            "sound",
+            "amber",
+            "code",
+            "intelligence",
+            "chicken",
+            "soup",
+            "tower",
+            "dough",
+            "normal",
+            "speed",
+            "better",
+            "minute",
+            "best",
+            "ever",
+            "to",
+            "and",
+            "when",
+            "by",
+            "learn",
+            "code",
+            "gain",
+            "buffer",
+            "money",
+            "start",
+            "stop",
+            "write",
+            "food",
+            "gym",
+            "vector",
+            "monkey",
+            "through",
+            "threw",
+            "undo",
+        ];
         let mut rng = rand::rng();
         let target_words = (0..50)
-            .map(|_| words_list.choose(&mut rng).unwrap().to_string()).collect();
+            .map(|_| words_list.choose(&mut rng).unwrap().to_string())
+            .collect();
         Self {
             char_index: 0,
             word_index: 0,
             typed_words: vec![String::new()],
             target_words,
             start_time: None,
-            time_remaining: DEFAULT_ROUND_TIME_SEC,
+            time_remaining: 30,
             exit: false,
             current_screen: CurrentScreen::Main,
+            round_time: RoundTime::Default,
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
             terminal.draw(|f| self.draw(f))?;
             self.handle_events()?;
-        };
+        }
         Ok(())
     }
-    fn draw(&self, f: &mut Frame){
+    fn draw(&self, f: &mut Frame) {
         f.render_widget(self, f.area());
     }
     fn handle_events(&mut self) -> io::Result<()> {
@@ -72,41 +145,41 @@ impl App {
         if let CurrentScreen::Main = self.current_screen {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
-                if elapsed >= DEFAULT_ROUND_TIME_SEC {
+                if elapsed >= self.get_round_time() {
                     self.current_screen = CurrentScreen::EndRound;
                     self.start_time = None;
                 } else {
-                    self.time_remaining = DEFAULT_ROUND_TIME_SEC - elapsed;
+                    self.time_remaining = self.get_round_time() - elapsed;
                 }
             }
         }
-       Ok(())
+        Ok(())
     }
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         use crossterm::event::KeyModifiers;
 
         match self.current_screen {
             CurrentScreen::Main => {
-                if self.start_time.is_none(){
+                if self.start_time.is_none() {
                     self.start_time = Some(Instant::now());
                 }
 
                 match key_event.code {
                     KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                            self.exit = true;
-                    },
+                        self.exit = true;
+                    }
                     KeyCode::Char(' ') => {
                         if self.char_index > 0 {
                             self.next_word();
                         }
-                    },
+                    }
                     KeyCode::Char(c) => {
                         if self.typed_words.len() <= self.word_index {
                             self.typed_words.push(String::new());
                         }
                         self.typed_words[self.word_index].push(c);
                         self.char_index += 1;
-                    },
+                    }
                     KeyCode::Backspace => {
                         if self.char_index > 0 {
                             self.char_index -= 1;
@@ -114,7 +187,7 @@ impl App {
                         } else {
                             self.prev_word()
                         }
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -130,9 +203,8 @@ impl App {
                 }
             }
         }
-       
     }
-    fn next_word(&mut self){
+    fn next_word(&mut self) {
         self.word_index += 1;
         self.char_index = 0;
 
@@ -140,7 +212,7 @@ impl App {
             self.typed_words.push(String::new());
         }
     }
-    fn prev_word(&mut self){
+    fn prev_word(&mut self) {
         if self.word_index > 0 {
             self.typed_words.pop();
             self.word_index -= 1;
@@ -151,40 +223,53 @@ impl App {
         let title = Line::from(" TerminalType: Type To Begin ").bold();
         let instructions = Line::from(vec![
             Span::raw(" Time Remaining:"),
-            Span::styled(self.time_remaining.to_string(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                self.time_remaining.to_string(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  |  Words Typed:"),
-            Span::styled(self.word_index.to_string(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                self.word_index.to_string(),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  |  Quit:"),
-            Span::styled("<Ctrl + C> ", Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " <Ctrl + C> ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]);
         let block = Block::bordered()
             .title(title.centered())
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
         let inner_area = block.inner(area);
-        
+
         let mut lines: Vec<Line> = vec![];
         let mut current_line = Vec::new();
         let mut current_width = 0;
         let max_width = inner_area.width as usize;
 
-        for(i, word) in self.target_words.iter().enumerate() {
+        for (i, word) in self.target_words.iter().enumerate() {
             let mut word_spans = vec![];
             let mut word_width = 0;
 
-            for(j,c) in word.chars().enumerate() {
+            for (j, c) in word.chars().enumerate() {
                 let style = if i == self.word_index && j == self.char_index {
                     // current
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::UNDERLINED)
                 } else {
-                    let typed_char = self.typed_words
-                        .get(i)
-                        .and_then(|w| w.chars().nth(j));
+                    let typed_char = self.typed_words.get(i).and_then(|w| w.chars().nth(j));
                     match typed_char {
                         Some(tc) if tc == c => Style::default().fg(Color::White), // correct
-                        Some(_) => Style::default().fg(Color::Red), // incorrect
+                        Some(_) => Style::default().fg(Color::Red),               // incorrect
                         None => Style::default().fg(Color::DarkGray),
                     }
                 };
@@ -211,34 +296,91 @@ impl App {
 
         let paragraph = Paragraph::new(Text::from(lines))
             .block(block)
-            .wrap(ratatui::widgets::Wrap {trim: false})
+            .wrap(ratatui::widgets::Wrap { trim: false })
             .alignment(ratatui::layout::Alignment::Left);
 
         paragraph.render(area, buf);
-
     }
     fn render_end_screen(&self, area: Rect, buf: &mut Buffer) {
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Percentage(70),
-                Constraint::Percentage(30),
-            ])
+            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
-
-        let wpm = (self.word_index as usize / DEFAULT_ROUND_TIME_SEC as usize) * 60;
+        let wpm = match self.round_time {
+            RoundTime::Default => self.word_index as f64 / 0.5,
+            RoundTime::Min => self.word_index as f64,
+            RoundTime::TwoMin => self.word_index as f64 / 2.0,
+            RoundTime::FiveMin => self.word_index as f64 / 5.0,
+        };
+        let round_type = match self.round_time {
+            RoundTime::Default => "30s round".to_string(),
+            RoundTime::Min => "1 min round".to_string(),
+            RoundTime::TwoMin => "2 min round".to_string(),
+            RoundTime::FiveMin => "5 min round".to_string(),
+        };
+        let round_results = self.get_accuracy();
 
         let top_block = Block::default()
-            .title("Summary")
+            .title("Round Summary")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let user_stats = Text::from(vec![
-            Line::from("Round Over!").centered(),
-            Line::from(""),
             Line::from(Span::styled(
-                    format!("WPM: {}", wpm),
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-            )).centered(),
+                format!("WPM: {}", wpm),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("WORD ACCURACY: {:.1}%", round_results.percentage_words),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("CHAR ACCURACY: {:.1}%", round_results.percentage_chars),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("TYPE: {}", round_type),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("WORDS TYPED: {}", self.word_index),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("WORDS CORRECT: {}", round_results.correct_words),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("CHARS TYPED: {}", round_results.total_chars),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
+            Line::from(Span::styled(
+                format!("CORRECT CHARS: {}", round_results.correct_chars),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .centered(),
         ]);
         let stats_paragraph = Paragraph::new(user_stats)
             .block(top_block)
@@ -257,18 +399,64 @@ impl App {
             .alignment(Alignment::Center);
         bottom_paragraph.render(layout[1], buf);
     }
+    // Functions for reurning game stats
+    fn get_round_time(&self) -> u64 {
+        match self.round_time {
+            RoundTime::Default => return 30,
+            RoundTime::Min => return 60,
+            RoundTime::TwoMin => return 120,
+            RoundTime::FiveMin => return 300,
+        }
+    }
+    fn get_accuracy(&self) -> RoundResult {
+        let num_words_typed = self.word_index;
+        let typed_words = &self.typed_words[..num_words_typed];
+        let comparison_words = &self.target_words[..num_words_typed];
+        let mut total_chars = 0;
+        let mut correct_chars = 0;
+        let mut correct_words = 0;
+
+        for (typed_word, target_word) in typed_words.iter().zip(comparison_words.iter()) {
+            let typed_chars: Vec<char> = typed_word.chars().collect();
+            let target_chars: Vec<char> = target_word.chars().collect();
+            total_chars += typed_chars.len();
+
+            // match
+            if typed_word == target_word {
+                correct_words += 1;
+                correct_chars += typed_chars.len();
+            } else {
+                for (typed_c, target_c) in typed_chars.iter().zip(target_chars.iter()) {
+                    if typed_c == target_c {
+                        correct_chars += 1;
+                    }
+                }
+            }
+        }
+        let incorrect_chars = total_chars - correct_chars;
+        let percentage_words = (correct_words as f64 / num_words_typed as f64) * 100 as f64;
+        let percentage_chars = (correct_chars as f64 / total_chars as f64) * 100 as f64;
+        let res = RoundResult {
+            correct_words: correct_words,
+            total_chars: total_chars,
+            correct_chars: correct_chars,
+            incorrect_chars: incorrect_chars,
+            percentage_words: percentage_words,
+            percentage_chars: percentage_chars,
+        };
+        return res;
+    }
 }
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self.current_screen {
             CurrentScreen::Main => self.render_main(area, buf),
             CurrentScreen::EndRound => self.render_end_screen(area, buf),
-
         }
     }
 }
 
-fn main() -> io::Result<()>{
+fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
     let app_result = App::new().run(&mut terminal);
     ratatui::restore();
