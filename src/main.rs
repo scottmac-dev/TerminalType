@@ -33,7 +33,7 @@ pub enum RoundTime {
     TwoMin,
     FiveMin,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TopScore {
    pub date: String,
    pub wpm_score: usize,
@@ -158,9 +158,26 @@ impl App {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
                 if elapsed >= self.get_round_time() {
-                    let now = Local::now();
-                    let date = now.format("%d-%m-%Y");
-                    self.update_leaderboard_file_contents(TopScore{date: date, wpm_score: self.word_index});
+                    // Update leaderboard if top 10 score                        
+                    let wpm = match self.round_time {
+                        RoundTime::Default => self.word_index as f64 / 0.5,
+                        RoundTime::Min => self.word_index as f64,
+                        RoundTime::TwoMin => self.word_index as f64 / 2.0,
+                        RoundTime::FiveMin => self.word_index as f64 / 5.0,
+                    };
+                    let mut should_update = false;
+                    if let Some(scores) = &self.top_scores {
+                        if scores.len() < 10 || scores.iter().any(|s| wpm as usize > s.wpm_score) {
+                            should_update = true;
+                        } 
+                    } else {
+                        should_update = true;
+                    }
+                    if should_update {
+                        let now = Local::now();
+                        let date = now.format("%d-%m-%Y").to_string();
+                        self.update_leaderboard_file_contents(TopScore{date: date, wpm_score: wpm as usize});
+                    }
                     self.current_screen = CurrentScreen::EndRound;
                     self.start_time = None;
                 } else {
@@ -482,7 +499,26 @@ impl App {
         let mut leaderboard_lines: Vec<Line> = Vec::<Line>::new();
         if let Some(scores) = &self.top_scores {
             for (i, score) in scores.iter().enumerate() {
-                let line = Line::from(format!("{}. {} - {} WPM", i, score.date, score.wpm_score)).centered();
+                let line = Line::from(vec![
+                    Span::styled(
+                        format!("{}: ", (i+1)),
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        format!("{} - ", score.date),
+                        Style::default()
+                            .fg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        format!("{} WPM", score.wpm_score),
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                ]).centered();
                 leaderboard_lines.push(line);
             }
         } else {
@@ -554,7 +590,7 @@ impl App {
         return res;
     }
     fn get_leaderboard_file_contents() -> Option<Vec<TopScore>> {
-        // File location of leaderboard.txt with top 10 scores
+        // Get file path 
         let home_dir = dirs::home_dir()?;
         let leaderboard_file_path = home_dir.join(".local/share/TerminalType/leaderboard.txt");
         let contents = fs::read_to_string(leaderboard_file_path).ok()?;
@@ -583,23 +619,40 @@ impl App {
         }
     }
     fn update_leaderboard_file_contents(&self, new_top_score: TopScore) {
-        // will only be called if score is in top 10, handled by parent func 
-        // File location of leaderboard.txt with top 10 scores
-        let home_dir = dirs::home_dir()?;
-        let leaderboard_file_path = home_dir.join(".local/share/TerminalType/leaderboard.txt");
-
-        if let Some(scores) = &self.top_scores {
-            // logic for finding and removing lowest score
-            // logic for ordering scores from highest wpm -> lowest
-            // logic for writing scores to file
-        } else {
-            fs::create_dir_all(&leaderboard_file_path)?;
-            let mut file = File::open(&leaderboard_file_path)?;
-            file.write_all(format!("{} {}", new_top_score.date, new_top_score.wpm_score).as_bytes()).ok()?;
+        // Get file path 
+        let home_dir = match dirs::home_dir() {
+            Some(dir) => dir,
+            None => return,
+        };
+        let leaderboard_dir = home_dir.join(".local/share/TerminalType");
+        let leaderboard_file_path = leaderboard_dir.join("leaderboard.txt");
+        // Validate exists
+        if let Err(e) = fs::create_dir_all(&leaderboard_dir) {
+            eprintln!("Failed to create directory for output file: {}", e);
+            return;
         }
-        // drops lowest date/score and replaces with new top score
+        // Load existing top_scores
+        let mut scores = self.top_scores.clone().unwrap_or_else(Vec::new);
+        scores.push(new_top_score);
+        // Sort by WPM
+        scores.sort_by(|a, b| b.wpm_score.cmp(&a.wpm_score));
+        // Keep top 10
+        scores.truncate(10);
+        // Format lines
+        let lines: Vec<String> = scores
+            .iter()
+            .map(|s| format!("{} {}", s.date, s.wpm_score))
+            .collect();
+        // Write to file
+        match File::create(&leaderboard_file_path) {
+            Ok(mut file) => {
+                if let Err(e) = writeln!(file, "{}", lines.join("\n")) {
+                    eprintln!("Error writing to leaderboard.txt: {}", e);
+                }
+            }
+            Err(e) => eprintln!("Failed to open leaderboard.txt: {}", e),
+        }
     }
-
 }
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -614,4 +667,5 @@ fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
     let app_result = App::new().run(&mut terminal);
     ratatui::restore();
-    app_result}
+    app_result
+}
