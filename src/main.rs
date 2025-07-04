@@ -158,6 +158,9 @@ impl App {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
                 if elapsed >= self.get_round_time() {
+                    let now = Local::now();
+                    let date = now.format("%d-%m-%Y");
+                    self.update_leaderboard_file_contents(TopScore{date: date, wpm_score: self.word_index});
                     self.current_screen = CurrentScreen::EndRound;
                     self.start_time = None;
                 } else {
@@ -322,8 +325,8 @@ impl App {
         let inner_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
-                Constraint::Percentage(60),
-                Constraint::Percentage(40),
+                Constraint::Percentage(50),
+                Constraint::Percentage(50),
             ])
             .split(outer_layout[0]);
         // Get statistics for output
@@ -476,7 +479,17 @@ impl App {
             .title("== Leaderboard ==")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
-        let leaderboard_paragraph = Paragraph::new("test")
+        let mut leaderboard_lines: Vec<Line> = Vec::<Line>::new();
+        if let Some(scores) = &self.top_scores {
+            for (i, score) in scores.iter().enumerate() {
+                let line = Line::from(format!("{}. {} - {} WPM", i, score.date, score.wpm_score)).centered();
+                leaderboard_lines.push(line);
+            }
+        } else {
+            let line = Line::from("No scores recorded").centered();
+            leaderboard_lines.push(line);
+        };
+        let leaderboard_paragraph = Paragraph::new(Text::from(leaderboard_lines))
             .block(top_right_block)
             .alignment(Alignment::Center);
         leaderboard_paragraph.render(inner_layout[1], buf);
@@ -541,33 +554,49 @@ impl App {
         return res;
     }
     fn get_leaderboard_file_contents() -> Option<Vec<TopScore>> {
-        // For saving top 10 wpm scores to output file for leaderboard
-        let HOME_DIR = dirs::home_dir().expect("Error: couldnt locate home directory");
-        let mut leaderboard_file_path = PathBuf::from(HOME_DIR);
-        leaderboard_file_path.push(".local/share/TerminalType/leaderboard.txt");
-
-        // Expected format of file leaderboard.txt
-        // 01-01-2025 44
-        // 02-01-2025 38
-        // ...
-        let contents = fs::read_to_string(leaderboard_file_path).expect("Error reading leaderboard.txt");
-        if contents.is_empty(){
+        // File location of leaderboard.txt with top 10 scores
+        let home_dir = dirs::home_dir()?;
+        let leaderboard_file_path = home_dir.join(".local/share/TerminalType/leaderboard.txt");
+        let contents = fs::read_to_string(leaderboard_file_path).ok()?;
+        if contents.trim().is_empty(){
             return None;
         }
-        let top_scores_from_file: Vec<String> = contents.split("\n").collect();
+
+        // Extract scores
         let mut top_scores = Vec::<TopScore>::new();
-        for line in top_scores_from_file.iter() {
-            let values: Vec<String> = line.split(' ').collect();
-            let score = TopScore{
-                date: values[0].trim(),
-                wpm_score: values[1].trim().parse()?,
-            };
-            top_scores.push(score);
+        for line in contents.lines() {
+            let mut parts = line.trim().split_whitespace();
+            let date = parts.next()?;
+            let wpm_str = parts.next()?;
+            let wpm_value = wpm_str.parse::<usize>().ok()?;
+            top_scores.push(TopScore{
+                date: date.to_string(),
+                wpm_score: wpm_value,
+            });
         }
-        return Some(top_scores)
+
+        // Return result
+        if top_scores.is_empty() {
+            None
+        } else {
+            Some(top_scores)
+        }
     }
-    fn update_leaderboard_file_contents(new_top_score: TopScore) {
-        // will only be called if score is in top 10 
+    fn update_leaderboard_file_contents(&self, new_top_score: TopScore) {
+        // will only be called if score is in top 10, handled by parent func 
+        // File location of leaderboard.txt with top 10 scores
+        let home_dir = dirs::home_dir()?;
+        let leaderboard_file_path = home_dir.join(".local/share/TerminalType/leaderboard.txt");
+
+        if let Some(scores) = &self.top_scores {
+            // logic for finding and removing lowest score
+            // logic for ordering scores from highest wpm -> lowest
+            // logic for writing scores to file
+        } else {
+            fs::create_dir_all(&leaderboard_file_path)?;
+            let mut file = File::open(&leaderboard_file_path)?;
+            file.write_all(format!("{} {}", new_top_score.date, new_top_score.wpm_score).as_bytes()).ok()?;
+        }
         // drops lowest date/score and replaces with new top score
     }
 
