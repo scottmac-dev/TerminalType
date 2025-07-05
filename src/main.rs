@@ -252,7 +252,21 @@ impl App {
         }
     }
     fn render_main(&self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" TerminalType: Type To Begin ").bold();
+        let title = Line::from(vec![
+            Span::styled(
+                "   TerminalType",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" | "),            
+            Span::styled(
+                "Type To Begin   ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]);
         let instructions = Line::from(vec![
             Span::raw(" Time Remaining:"),
             Span::styled(
