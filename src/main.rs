@@ -252,6 +252,28 @@ impl App {
         }
     }
     fn render_main(&self, area: Rect, buf: &mut Buffer) {
+        // Define grid layout
+        let outer_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(100)])
+            .split(area);
+        let inner_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Percentage(15),
+                Constraint::Percentage(70),
+                Constraint::Percentage(15),
+            ])
+            .split(outer_layout[0]);
+        let main_content_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Percentage(10),
+                Constraint::Percentage(80),
+                Constraint::Percentage(10),
+            ])
+            .split(inner_layout[1]);
+        // Outer layer content
         let title = Line::from(vec![
             Span::styled(
                 "   TerminalType",
@@ -290,16 +312,16 @@ impl App {
                     .add_modifier(Modifier::BOLD),
             ),
         ]);
-        let block = Block::bordered()
+        let outer_block = Block::bordered()
             .title(title.centered())
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
-        let inner_area = block.inner(area);
-
+        let main_content_block = Block::default();
+        // Main content for game
         let mut lines: Vec<Line> = vec![];
         let mut current_line = Vec::new();
         let mut current_width = 0;
-        let max_width = inner_area.width as usize;
+        let max_width = main_content_layout[1].width as usize;
 
         for (i, word) in self.target_words.iter().enumerate() {
             let mut word_spans = vec![];
@@ -315,8 +337,8 @@ impl App {
                     let typed_char = self.typed_words.get(i).and_then(|w| w.chars().nth(j));
                     match typed_char {
                         Some(tc) if tc == c => Style::default().fg(Color::White), // correct
-                        Some(_) => Style::default().fg(Color::Red),               // incorrect
-                        None => Style::default().fg(Color::DarkGray),
+                        Some(_) => Style::default().fg(Color::Red), // incorrect
+                        None => Style::default().fg(Color::DarkGray), // not typed
                     }
                 };
                 let span = Span::styled(c.to_string(), style);
@@ -339,13 +361,18 @@ impl App {
         if !current_line.is_empty() {
             lines.push(Line::from(current_line));
         }
+        // Blank outer template
+        let outer_paragraph = Paragraph::new(Text::from(""))
+            .block(outer_block)
+            .alignment(Alignment::Center);
+        outer_paragraph.render(outer_layout[0], buf);
 
-        let paragraph = Paragraph::new(Text::from(lines))
-            .block(block)
+        // Main content for game
+        let main_paragraph = Paragraph::new(Text::from(lines))
+            .block(main_content_block)
             .wrap(ratatui::widgets::Wrap { trim: false })
             .alignment(Alignment::Left);
-
-        paragraph.render(area, buf);
+        main_paragraph.render(main_content_layout[1], buf);
     }
     fn render_end_screen(&self, area: Rect, buf: &mut Buffer) {
         // Define area grid layout
@@ -521,7 +548,7 @@ impl App {
                             .add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(
-                        format!("{} - ", score.date),
+                        format!("{}  ", score.date),
                         Style::default()
                             .fg(Color::Blue)
                             .add_modifier(Modifier::BOLD),
