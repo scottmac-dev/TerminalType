@@ -8,7 +8,7 @@ use ratatui::{
     style::{Color, Modifier, Style, Stylize},
     symbols::border,
     text::{Line, Span, Text},
-    widgets::{Block, BorderType, Borders, Paragraph, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget},
 };
 use std::{
     io::{self, Write},
@@ -24,6 +24,7 @@ pub enum CurrentScreen {
     #[default]
     Main,
     EndRound,
+    ShowOptions,
 }
 #[derive(Debug, Default)]
 pub enum RoundTime {
@@ -231,7 +232,15 @@ impl App {
                     KeyCode::Char('r') => {
                         *self = App::new() // reset to default
                     }
+                    KeyCode::Char('o') => {
+                        self.current_screen = CurrentScreen::ShowOptions; 
+                    }
                     _ => {}
+                }
+            }
+            CurrentScreen::ShowOptions => {
+                match key_event.code {
+                    _ => {self.exit = true;}
                 }
             }
         }
@@ -583,6 +592,53 @@ impl App {
             .alignment(Alignment::Center);
         bottom_paragraph.render(outer_layout[1], buf);
     }
+    fn render_options(&self, area: Rect, buf: &mut Buffer) {
+        let outer_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Percentage(25),
+                Constraint::Percentage(50),
+                Constraint::Percentage(25),
+            ])
+            .split(area);
+        let inner_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Percentage(25),
+                Constraint::Percentage(50),
+                Constraint::Percentage(25),
+            ])
+            .split(outer_layout[1]);
+        let title = Line::from(vec![
+            Span::raw("User Options")
+        ]);
+        let options_block = Block::default()
+            .title(title.centered())
+            .borders(Borders::ALL)
+            .border_set(border::THICK);
+        let options_text = Text::from(vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("Round Time"),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::UNDERLINED),
+                ),
+            ]),            
+            Line::from(vec![
+                Span::styled(
+                    format!("Word Theme"),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::UNDERLINED),
+                ),
+            ])
+        ]);
+        let options_paragraph = Paragraph::new(options_text)
+            .block(options_block)
+            .alignment(Alignment::Center);
+        options_paragraph.render(inner_layout[1], buf);
+    }
     // Functions for reurning game stats
     fn get_round_time(&self) -> u64 {
         match self.round_time {
@@ -700,6 +756,7 @@ impl Widget for &App {
         match self.current_screen {
             CurrentScreen::Main => self.render_main(area, buf),
             CurrentScreen::EndRound => self.render_end_screen(area, buf),
+            CurrentScreen::ShowOptions => self.render_options(area, buf),
         }
     }
 }
