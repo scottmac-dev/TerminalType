@@ -159,12 +159,13 @@ impl App {
             if let Some(start) = self.start_time {
                 let elapsed = start.elapsed().as_secs();
                 if elapsed >= self.get_round_time() {
-                    // Update leaderboard if top 10 score                        
+                    // Update leaderboard if top 10 score
+                    let round_results = self.get_accuracy();
                     let wpm = match self.round_time {
-                        RoundTime::Default => self.word_index as f64 / 0.5,
-                        RoundTime::Min => self.word_index as f64,
-                        RoundTime::TwoMin => self.word_index as f64 / 2.0,
-                        RoundTime::FiveMin => self.word_index as f64 / 5.0,
+                        RoundTime::Default => (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 0.5,
+                        RoundTime::Min => (self.word_index - (self.word_index - round_results.correct_words)) as f64,
+                        RoundTime::TwoMin => (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 2.0,
+                        RoundTime::FiveMin => (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 5.0,
                     };
                     let mut should_update = false;
                     if let Some(scores) = &self.top_scores {
@@ -397,25 +398,42 @@ impl App {
             ])
             .split(outer_layout[0]);
         // Get statistics for output
-        let wpm = match self.round_time {
-            RoundTime::Default => self.word_index as f64 / 0.5,
-            RoundTime::Min => self.word_index as f64,
-            RoundTime::TwoMin => self.word_index as f64 / 2.0,
-            RoundTime::FiveMin => self.word_index as f64 / 5.0,
-        };
         let round_type = match self.round_time {
             RoundTime::Default => "30s round".to_string(),
             RoundTime::Min => "1 min round".to_string(),
             RoundTime::TwoMin => "2 min round".to_string(),
             RoundTime::FiveMin => "5 min round".to_string(),
         };
-        let round_results = self.get_accuracy();
+        let round_results = self.get_accuracy();        
+        let actual_wpm = match self.round_time {
+            RoundTime::Default => (self.word_index -(self.word_index - round_results.correct_words)) as f64 / 0.5,
+            RoundTime::Min => (self.word_index -(self.word_index - round_results.correct_words)) as f64,
+            RoundTime::TwoMin => (self.word_index -(self.word_index - round_results.correct_words)) as f64 / 2.0,
+            RoundTime::FiveMin => (self.word_index -(self.word_index - round_results.correct_words)) as f64 / 5.0,
+        };        
+        let raw_wpm = match self.round_time {
+            RoundTime::Default => self.word_index as f64 / 0.5,
+            RoundTime::Min => self.word_index as f64,
+            RoundTime::TwoMin => self.word_index as f64 / 2.0,
+            RoundTime::FiveMin => self.word_index as f64 / 5.0,
+        };
         // Top left block for round stats
+        let top_left_title = Line::from(vec![
+            Span::styled(
+                " Round Summary ",
+                Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::BOLD),
+            )
+        ]);
         let top_left_block = Block::default()
-            .title("== Round Summary ==")
+            .title(top_left_title)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let user_stats = Text::from(vec![
+            Line::from(vec![
+                Span::raw("")
+            ]),
             Line::from(vec![
                 Span::styled(
                     format!("WPM: "),
@@ -424,9 +442,24 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!("{}",wpm),
+                    format!("{}",actual_wpm),
                     Style::default()
                         .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                )
+            ])
+            .centered(),
+            Line::from(vec![
+                Span::styled(
+                    format!("RAW WPM: "),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("{}",raw_wpm),
+                    Style::default()
+                        .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
                 )
             ])
@@ -541,12 +574,21 @@ impl App {
             .block(top_left_block)
             .alignment(Alignment::Center);
         stats_paragraph.render(inner_layout[0], buf);
-        // Top right block for leader board
+        // Top right block for leader boardlet
+        let top_right_title = Line::from(vec![
+            Span::styled(
+                " Leaderboard ",
+                Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::BOLD),
+            )
+        ]);
         let top_right_block = Block::default()
-            .title("== Leaderboard ==")
+            .title(top_right_title)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let mut leaderboard_lines: Vec<Line> = Vec::<Line>::new();
+        leaderboard_lines.push(Line::from(vec![Span::raw("")]));
         if let Some(scores) = &self.top_scores {
             for (i, score) in scores.iter().enumerate() {
                 let line = Line::from(vec![
@@ -579,9 +621,17 @@ impl App {
             .block(top_right_block)
             .alignment(Alignment::Center);
         leaderboard_paragraph.render(inner_layout[1], buf);
-        // Bottom block for user options
+        // Bottom block for user options        
+        let bottom_title = Line::from(vec![
+            Span::styled(
+                " User Options ",
+                Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::BOLD),
+            )
+        ]); 
         let bottom_block = Block::default()
-            .title("== User Options ==")
+            .title(bottom_title)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let user_options = Text::from(vec![
