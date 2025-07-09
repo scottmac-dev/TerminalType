@@ -268,8 +268,8 @@ impl App {
                                 }
                             }
                             1 => {
-                                match self.config.round_time_index {
-                                    3 => {self.config.text_theme_index= 0;}
+                                match self.config.text_theme_index {
+                                    3 => {self.config.text_theme_index = 0;}
                                     _ => {self.config.text_theme_index += 1;}
                                 }
                             }
@@ -285,8 +285,8 @@ impl App {
                                 }
                             }
                             1 => {
-                                match self.config.round_time_index {
-                                    0 => {self.config.text_theme_index= 3;}
+                                match self.config.text_theme_index {
+                                    0 => {self.config.text_theme_index = 3;}
                                     _ => {self.config.text_theme_index -= 1;}
                                 }
                             }
@@ -800,88 +800,46 @@ impl App {
             .border_set(border::THICK);
         let round_time_options = vec!["30 Seconds", "1 Minute", "2 Minute", "5 Minute"];
         let text_theme_options = vec!["Default", "Lorem Ipsum", "Technology", "Food"];
-        let options_text = match self.config.choice_index {
-            0 => {
-                Text::from(vec![
-                    Line::from(vec![
-                        Span::styled(
-                            format!("Round Time"),
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::UNDERLINED),
-                        ),
-                    ]),
-                    Line::from(vec![Span::raw("")]),
-                    Line::from(vec![
-                        Span::styled(
-                            format!("< {} >", round_time_options[self.config.round_time_index]),
-                            Style::default()
-                                .fg(Color::White)
-                                .bg(Color::LightBlue)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                    ]),
-                    Line::from(vec![Span::raw("")]),
-                    Line::from(vec![
-                        Span::styled(
-                            format!("Word Theme"),
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::UNDERLINED),
-                        ),
-                    ]),
-                    Line::from(vec![Span::raw("")]),
-                    Line::from(vec![
-                        Span::styled(
-                            format!("< {} >", text_theme_options[self.config.text_theme_index]),
-                            Style::default()
-                                .fg(Color::White)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                    ]),
-                ]);
-            }
-            1 => {
-                Text::from(vec![
-                    Line::from(vec![
-                        Span::styled(
-                            format!("Round Time"),
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::UNDERLINED),
-                        ),
-                    ]),
-                    Line::from(vec![Span::raw("")]),
-                    Line::from(vec![
-                        Span::styled(
-                            format!("< {} >", round_time_options[self.config.round_time_index]),
-                            Style::default()
-                                .fg(Color::White)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                    ]),
-                    Line::from(vec![Span::raw("")]),
-                    Line::from(vec![
-                        Span::styled(
-                            format!("Word Theme"),
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::UNDERLINED),
-                        ),
-                    ]),
-                    Line::from(vec![Span::raw("")]),
-                    Line::from(vec![
-                        Span::styled(
-                            format!("< {} >", text_theme_options[self.config.text_theme_index]),
-                            Style::default()
-                                .fg(Color::White)
-                                .bg(Color::LightBlue)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                    ]),
-                ]);
-            }
-        } 
+        let options_text = Text::from(vec![
+            Line::from(vec![Span::raw("")]),
+            Line::from(vec![
+                Span::styled(
+                    format!("Round Time"),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::UNDERLINED),
+                ),
+            ]),
+            Line::from(vec![Span::raw("")]),
+            Line::from(vec![
+                Span::styled(
+                    format!("< {} >", round_time_options[self.config.round_time_index]),
+                    Style::default()
+                        .fg(if self.config.choice_index == 0 {Color::Black} else {Color::White})
+                        .bg(if self.config.choice_index == 0 {Color::LightBlue} else {Color::Reset})
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![Span::raw("")]),
+            Line::from(vec![
+                Span::styled(
+                    format!("Word Theme"),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::UNDERLINED),
+                ),
+            ]),
+            Line::from(vec![Span::raw("")]),
+            Line::from(vec![
+                Span::styled(
+                    format!("< {} >", text_theme_options[self.config.text_theme_index]),
+                    Style::default()
+                        .fg(if self.config.choice_index == 1 {Color::Black} else {Color::White})
+                        .bg(if self.config.choice_index == 1 {Color::LightBlue} else {Color::Reset})
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+        ]);
         let options_paragraph = Paragraph::new(options_text)
             .block(options_block)
             .alignment(Alignment::Center);
