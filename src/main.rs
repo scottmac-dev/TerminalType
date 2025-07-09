@@ -34,6 +34,14 @@ pub enum RoundTime {
     TwoMin,
     FiveMin,
 }
+#[derive(Debug, Default)]
+pub enum TextTheme {
+    #[default]
+    Default,
+    Lorem,
+    Tech,
+    Food,
+}
 #[derive(Debug, Clone)]
 pub struct TopScore {
    pub date: String,
@@ -49,6 +57,12 @@ pub struct RoundResult {
     pub percentage_chars: f64,
 }
 #[derive(Debug, Default)]
+pub struct ConfigIndex {
+    pub round_time_index: usize,
+    pub text_theme_index: usize,
+    pub choice_index: usize,
+}
+#[derive(Debug, Default)]
 pub struct App {
     pub char_index: usize,
     pub word_index: usize,
@@ -59,7 +73,9 @@ pub struct App {
     pub exit: bool,
     pub current_screen: CurrentScreen,
     pub round_time: RoundTime,
+    pub text_theme: TextTheme,
     pub top_scores: Option<Vec<TopScore>>,
+    pub config: ConfigIndex,
 }
 impl App {
     pub fn new() -> Self {
@@ -128,7 +144,9 @@ impl App {
             exit: false,
             current_screen: CurrentScreen::Main,
             round_time: RoundTime::Default,
+            text_theme: TextTheme::Default,
             top_scores: None,
+            config: ConfigIndex{round_time_index: 0, text_theme_index: 0, choice_index: 0},
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -233,7 +251,7 @@ impl App {
                     KeyCode::Char('r') => {
                         *self = App::new() // reset to default
                     }
-                    KeyCode::Char('o') => {
+                    KeyCode::Char('e') => {
                         self.current_screen = CurrentScreen::ShowOptions; 
                     }
                     _ => {}
@@ -241,6 +259,54 @@ impl App {
             }
             CurrentScreen::ShowOptions => {
                 match key_event.code {
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        match self.config.choice_index {
+                            0 => {
+                                match self.config.round_time_index {
+                                    3 => {self.config.round_time_index = 0;}
+                                    _ => {self.config.round_time_index += 1;}
+                                }
+                            }
+                            1 => {
+                                match self.config.round_time_index {
+                                    3 => {self.config.text_theme_index= 0;}
+                                    _ => {self.config.text_theme_index += 1;}
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        match self.config.choice_index {
+                            0 => {
+                                match self.config.round_time_index {
+                                    0 => {self.config.round_time_index = 3;}
+                                    _ => {self.config.round_time_index -= 1;}
+                                }
+                            }
+                            1 => {
+                                match self.config.round_time_index {
+                                    0 => {self.config.text_theme_index= 3;}
+                                    _ => {self.config.text_theme_index -= 1;}
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        match self.config.choice_index {
+                            0 => {self.config.choice_index = 1;}
+                            1 => {self.config.choice_index = 0;}
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        match self.config.choice_index {
+                            0 => {self.config.choice_index = 1;}
+                            1 => {self.config.choice_index = 0;}
+                            _ => {}
+                        }
+                    }
                     _ => {self.exit = true;}
                 }
             }
@@ -635,8 +701,74 @@ impl App {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let user_options = Text::from(vec![
-            Line::from("Press 'r' to play again or 'q' to quit").centered(),
+            Line::from(vec![
+                Span::raw("")
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    format!("Press "),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("'r'"),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                ), 
+                Span::styled(
+                    format!(" to play again"),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+            .centered(),
+            Line::from(vec![
+                Span::styled(
+                    format!("Press "),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("'e'"),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                ),                
+                Span::styled(
+                    format!(" to edit user config"),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+            .centered(),            
+            Line::from(vec![
+                Span::styled(
+                    format!("Press "),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("'q'"),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                ),                
+                Span::styled(
+                    format!(" to quit terminal"),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+            .centered(),
         ]);
+       
         let bottom_paragraph = Paragraph::new(user_options)
             .block(bottom_block)
             .alignment(Alignment::Center);
@@ -660,30 +792,96 @@ impl App {
             ])
             .split(outer_layout[1]);
         let title = Line::from(vec![
-            Span::raw("User Options")
+            Span::raw(" User Config ")
         ]);
         let options_block = Block::default()
             .title(title.centered())
             .borders(Borders::ALL)
             .border_set(border::THICK);
-        let options_text = Text::from(vec![
-            Line::from(vec![
-                Span::styled(
-                    format!("Round Time"),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::UNDERLINED),
-                ),
-            ]),            
-            Line::from(vec![
-                Span::styled(
-                    format!("Word Theme"),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::UNDERLINED),
-                ),
-            ])
-        ]);
+        let round_time_options = vec!["30 Seconds", "1 Minute", "2 Minute", "5 Minute"];
+        let text_theme_options = vec!["Default", "Lorem Ipsum", "Technology", "Food"];
+        let options_text = match self.config.choice_index {
+            0 => {
+                Text::from(vec![
+                    Line::from(vec![
+                        Span::styled(
+                            format!("Round Time"),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                    ]),
+                    Line::from(vec![Span::raw("")]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("< {} >", round_time_options[self.config.round_time_index]),
+                            Style::default()
+                                .fg(Color::White)
+                                .bg(Color::LightBlue)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ]),
+                    Line::from(vec![Span::raw("")]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("Word Theme"),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                    ]),
+                    Line::from(vec![Span::raw("")]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("< {} >", text_theme_options[self.config.text_theme_index]),
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ]),
+                ]);
+            }
+            1 => {
+                Text::from(vec![
+                    Line::from(vec![
+                        Span::styled(
+                            format!("Round Time"),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                    ]),
+                    Line::from(vec![Span::raw("")]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("< {} >", round_time_options[self.config.round_time_index]),
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ]),
+                    Line::from(vec![Span::raw("")]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("Word Theme"),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                    ]),
+                    Line::from(vec![Span::raw("")]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("< {} >", text_theme_options[self.config.text_theme_index]),
+                            Style::default()
+                                .fg(Color::White)
+                                .bg(Color::LightBlue)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ]),
+                ]);
+            }
+        } 
         let options_paragraph = Paragraph::new(options_text)
             .block(options_block)
             .alignment(Alignment::Center);
