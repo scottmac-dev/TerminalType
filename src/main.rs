@@ -56,7 +56,7 @@ pub struct RoundResult {
     pub percentage_words: f64,
     pub percentage_chars: f64,
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ConfigIndex {
     pub round_time_index: usize,
     pub text_theme_index: usize,
@@ -148,6 +148,98 @@ impl App {
             top_scores: None,
             config: ConfigIndex{round_time_index: 0, text_theme_index: 0, choice_index: 0},
         }
+    }    
+    pub fn new_with_config(config: ConfigIndex) -> Self {
+        let words_list = vec![
+            "hello",
+            "world",
+            "type",
+            "rust",
+            "juice",
+            "the",
+            "lazy",
+            "dog",
+            "jumped",
+            "over",
+            "sleeping",
+            "fox",
+            "disgrace",
+            "snap",
+            "crop",
+            "pot",
+            "sound",
+            "amber",
+            "code",
+            "intelligence",
+            "chicken",
+            "soup",
+            "tower",
+            "dough",
+            "normal",
+            "speed",
+            "better",
+            "minute",
+            "best",
+            "ever",
+            "to",
+            "and",
+            "when",
+            "by",
+            "learn",
+            "code",
+            "gain",
+            "buffer",
+            "money",
+            "start",
+            "stop",
+            "write",
+            "food",
+            "gym",
+            "vector",
+            "monkey",
+            "through",
+            "threw",
+            "undo",
+        ];
+        let mut rng = rand::rng();
+        let target_words = (0..50)
+            .map(|_| words_list.choose(&mut rng).unwrap().to_string())
+            .collect();
+        let time_remaining = match config.round_time_index {
+            0 => {30}
+            1 => {60}
+            2 => {120}
+            3 => {300}
+            _ => {panic!("Invalid round_time_index {}", config.round_time_index);}
+        };
+        let round_time = match config.round_time_index {
+            0 => {RoundTime::Default}
+            1 => {RoundTime::Min}
+            2 => {RoundTime::TwoMin}
+            3 => {RoundTime::FiveMin}
+            _ => {panic!("Invalid round_time_index {}", config.round_time_index);}
+        };
+        let text_theme = match config.text_theme_index {
+            0 => {TextTheme::Default}
+            1 => {TextTheme::Lorem}
+            2 => {TextTheme::Tech}
+            3 => {TextTheme::Food}
+            _ => {panic!("Invalid text_theme_index {}", config.text_theme_index);}
+        };
+        Self {
+            char_index: 0,
+            word_index: 0,
+            typed_words: vec![String::new()],
+            target_words,
+            start_time: None,
+            time_remaining: time_remaining,
+            exit: false,
+            current_screen: CurrentScreen::Main,
+            round_time: round_time,
+            text_theme: text_theme,
+            top_scores: None,
+            config: config,
+        }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
@@ -209,13 +301,11 @@ impl App {
     }
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         use crossterm::event::KeyModifiers;
-
         match self.current_screen {
             CurrentScreen::Main => {
                 if self.start_time.is_none() {
                     self.start_time = Some(Instant::now());
                 }
-
                 match key_event.code {
                     KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                         self.exit = true;
@@ -249,7 +339,7 @@ impl App {
                         self.exit = true;
                     }
                     KeyCode::Char('r') => {
-                        *self = App::new() // reset to default
+                        *self = App::new_with_config(self.config.clone()) // new app with custom config
                     }
                     KeyCode::Char('e') => {
                         self.current_screen = CurrentScreen::ShowOptions; 
@@ -293,21 +383,31 @@ impl App {
                             _ => {}
                         }
                     }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        match self.config.choice_index {
-                            0 => {self.config.choice_index = 1;}
-                            1 => {self.config.choice_index = 0;}
-                            _ => {}
-                        }
-                    }
                     KeyCode::Down | KeyCode::Char('j') => {
                         match self.config.choice_index {
                             0 => {self.config.choice_index = 1;}
-                            1 => {self.config.choice_index = 0;}
+                            1 => {self.config.choice_index = 2;}
+                            2 => {self.config.choice_index = 0;}
                             _ => {}
                         }
                     }
-                    _ => {self.exit = true;}
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        match self.config.choice_index {
+                            0 => {self.config.choice_index = 2;}
+                            1 => {self.config.choice_index = 0;}
+                            2 => {self.config.choice_index = 1;}
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Enter => {
+                        match self.config.choice_index {
+                            2 => {
+                                self.current_screen = CurrentScreen::EndRound
+                            }
+                            _ => {self.config.choice_index = 2}
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -786,13 +886,18 @@ impl App {
         let inner_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
-                Constraint::Percentage(25),
-                Constraint::Percentage(50),
-                Constraint::Percentage(25),
+                Constraint::Percentage(30),
+                Constraint::Percentage(40),
+                Constraint::Percentage(30),
             ])
             .split(outer_layout[1]);
         let title = Line::from(vec![
-            Span::raw(" User Config ")
+            Span::styled(
+                format!(" User Config "),
+                Style::default()
+                    .fg(Color::Blue)
+                    .add_modifier(Modifier::BOLD)
+            )
         ]);
         let options_block = Block::default()
             .title(title.centered())
@@ -812,13 +917,15 @@ impl App {
             ]),
             Line::from(vec![Span::raw("")]),
             Line::from(vec![
+                Span::raw("< "),
                 Span::styled(
-                    format!("< {} >", round_time_options[self.config.round_time_index]),
+                    format!("{}", round_time_options[self.config.round_time_index]),
                     Style::default()
                         .fg(if self.config.choice_index == 0 {Color::Black} else {Color::White})
                         .bg(if self.config.choice_index == 0 {Color::LightBlue} else {Color::Reset})
                         .add_modifier(Modifier::BOLD),
                 ),
+                Span::raw(" >"),
             ]),
             Line::from(vec![Span::raw("")]),
             Line::from(vec![
@@ -831,12 +938,24 @@ impl App {
             ]),
             Line::from(vec![Span::raw("")]),
             Line::from(vec![
+                Span::raw("< "),
                 Span::styled(
-                    format!("< {} >", text_theme_options[self.config.text_theme_index]),
+                    format!("{}", text_theme_options[self.config.text_theme_index]),
                     Style::default()
                         .fg(if self.config.choice_index == 1 {Color::Black} else {Color::White})
                         .bg(if self.config.choice_index == 1 {Color::LightBlue} else {Color::Reset})
                         .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" >"),
+            ]),
+            Line::from(vec![Span::raw("")]),
+            Line::from(vec![
+                Span::styled(
+                    format!("Save"),
+                    Style::default()
+                    .fg(if self.config.choice_index == 2 {Color::Black} else {Color::White})
+                    .bg(if self.config.choice_index == 2 {Color::Yellow} else {Color::Reset})
+                    .add_modifier(Modifier::BOLD),
                 ),
             ]),
         ]);
