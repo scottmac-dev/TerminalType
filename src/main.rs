@@ -75,6 +75,7 @@ pub struct App {
     pub text_theme: TextTheme,
     pub top_scores: Option<Vec<TopScore>>,
     pub config: ConfigIndex,
+    pub cooldown_start: Option<Instant>,
 }
 
 impl App {
@@ -151,6 +152,7 @@ impl App {
                 text_theme_index: 0,
                 choice_index: 0,
             },
+            cooldown_start: None,
         }
     }
     pub fn new_with_config(config: ConfigIndex) -> Self {
@@ -249,6 +251,7 @@ impl App {
             text_theme: text_theme,
             top_scores: None,
             config: config,
+            cooldown_start: None,
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -361,25 +364,31 @@ impl App {
                 }
             }
             CurrentScreen::EndRound => {
-                // Disable key press for 1 Second post game end
-                let cooldown_start: Instant = Instant::now();
-                if cooldown_start.elapsed() >= Duration::from_secs(2) {
-                    match key_event.code {
-                        KeyCode::Char('q') => {
-                            self.exit = true;
+                // Start cooldown for user input
+                if self.cooldown_start.is_none() {
+                    self.cooldown_start = Some(Instant::now());
+                }
+                // Disable key press for 1.5 Second post game end
+                if let Some(start) = self.cooldown_start {
+                    if start.elapsed() >= Duration::from_millis(1500) {
+                        // Enable
+                        match key_event.code {
+                            KeyCode::Char('q') => {
+                                self.exit = true;
+                            }
+                            KeyCode::Char('r') => {
+                                *self = App::new_with_config(self.config.clone()) // new app with custom config
+                            }
+                            KeyCode::Char('e') => {
+                                self.current_screen = CurrentScreen::ShowOptions;
+                            }
+                            _ => {}
                         }
-                        KeyCode::Char('r') => {
-                            *self = App::new_with_config(self.config.clone()) // new app with custom config
+                    } else {
+                        // Discard key press
+                        if event::poll(Duration::from_millis(10)).unwrap() {
+                            let _ = event::read();
                         }
-                        KeyCode::Char('e') => {
-                            self.current_screen = CurrentScreen::ShowOptions;
-                        }
-                        _ => {}
-                    }
-                } else {
-                    // Discard key press for first 1 sec to avoid accidental press
-                    if event::poll(Duration::from_millis(10)).unwrap() {
-                        let _ = event::read();
                     }
                 }
             }
@@ -477,10 +486,7 @@ impl App {
   █  ▐▛▀▀▘▐▛▀▚▖▐▌  ▐▌  █  ▐▌ ▝▜▌▐▛▀▜▌▐▌         █    ▐▌  ▐▛▀▘ ▐▛▀▀▘
   █  ▐▙▄▄▖▐▌ ▐▌▐▌  ▐▌▗▄█▄▖▐▌  ▐▌▐▌ ▐▌▐▙▄▄▖      █    ▐▌  ▐▌   ▐▙▄▄▖
         "#;
-        let title_style = Style::default()
-            .fg(Color::LightBlue)
-            .bg(Color::Black)
-            .bold();
+        let title_style = Style::default().fg(Color::LightBlue).bg(Color::Black);
         let title_lines: Vec<Line> = title
             .lines()
             .map(|line| Line::from(Span::styled(line.to_string(), title_style)))
