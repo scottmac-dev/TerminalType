@@ -1,3 +1,4 @@
+use chrono::Local;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use rand::prelude::IndexedRandom;
 use ratatui::{
@@ -8,16 +9,14 @@ use ratatui::{
     style::{Color, Modifier, Style, Stylize},
     symbols::border,
     text::{Line, Span, Text},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget},
+    widgets::{Block, BorderType, Borders, Paragraph, Widget},
 };
 use std::{
+    fs::{self, File},
     io::{self, Write},
     time::{Duration, Instant},
-    path::{PathBuf},
-    fs::{self, File},
 };
 use unicode_width::UnicodeWidthStr;
-use chrono::{Local};
 
 #[derive(Debug, Default)]
 pub enum CurrentScreen {
@@ -44,8 +43,8 @@ pub enum TextTheme {
 }
 #[derive(Debug, Clone)]
 pub struct TopScore {
-   pub date: String,
-   pub wpm_score: usize,
+    pub date: String,
+    pub wpm_score: usize,
 }
 #[derive(Debug)]
 pub struct RoundResult {
@@ -77,6 +76,7 @@ pub struct App {
     pub top_scores: Option<Vec<TopScore>>,
     pub config: ConfigIndex,
 }
+
 impl App {
     pub fn new() -> Self {
         let words_list = vec![
@@ -146,9 +146,13 @@ impl App {
             round_time: RoundTime::Default,
             text_theme: TextTheme::Default,
             top_scores: None,
-            config: ConfigIndex{round_time_index: 0, text_theme_index: 0, choice_index: 0},
+            config: ConfigIndex {
+                round_time_index: 0,
+                text_theme_index: 0,
+                choice_index: 0,
+            },
         }
-    }    
+    }
     pub fn new_with_config(config: ConfigIndex) -> Self {
         let words_list = vec![
             "hello",
@@ -206,25 +210,31 @@ impl App {
             .map(|_| words_list.choose(&mut rng).unwrap().to_string())
             .collect();
         let time_remaining = match config.round_time_index {
-            0 => {30}
-            1 => {60}
-            2 => {120}
-            3 => {300}
-            _ => {panic!("Invalid round_time_index {}", config.round_time_index);}
+            0 => 30,
+            1 => 60,
+            2 => 120,
+            3 => 300,
+            _ => {
+                panic!("Invalid round_time_index {}", config.round_time_index);
+            }
         };
         let round_time = match config.round_time_index {
-            0 => {RoundTime::Default}
-            1 => {RoundTime::Min}
-            2 => {RoundTime::TwoMin}
-            3 => {RoundTime::FiveMin}
-            _ => {panic!("Invalid round_time_index {}", config.round_time_index);}
+            0 => RoundTime::Default,
+            1 => RoundTime::Min,
+            2 => RoundTime::TwoMin,
+            3 => RoundTime::FiveMin,
+            _ => {
+                panic!("Invalid round_time_index {}", config.round_time_index);
+            }
         };
         let text_theme = match config.text_theme_index {
-            0 => {TextTheme::Default}
-            1 => {TextTheme::Lorem}
-            2 => {TextTheme::Tech}
-            3 => {TextTheme::Food}
-            _ => {panic!("Invalid text_theme_index {}", config.text_theme_index);}
+            0 => TextTheme::Default,
+            1 => TextTheme::Lorem,
+            2 => TextTheme::Tech,
+            3 => TextTheme::Food,
+            _ => {
+                panic!("Invalid text_theme_index {}", config.text_theme_index);
+            }
         };
         Self {
             char_index: 0,
@@ -263,7 +273,6 @@ impl App {
                 }
             }
         }
-
         // Main screen logic
         if let CurrentScreen::Main = self.current_screen {
             if let Some(start) = self.start_time {
@@ -272,23 +281,41 @@ impl App {
                     // Update leaderboard if top 10 score
                     let round_results = self.get_accuracy();
                     let wpm = match self.round_time {
-                        RoundTime::Default => (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 0.5,
-                        RoundTime::Min => (self.word_index - (self.word_index - round_results.correct_words)) as f64,
-                        RoundTime::TwoMin => (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 2.0,
-                        RoundTime::FiveMin => (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 5.0,
+                        RoundTime::Default => {
+                            (self.word_index - (self.word_index - round_results.correct_words))
+                                as f64
+                                / 0.5
+                        }
+                        RoundTime::Min => {
+                            (self.word_index - (self.word_index - round_results.correct_words))
+                                as f64
+                        }
+                        RoundTime::TwoMin => {
+                            (self.word_index - (self.word_index - round_results.correct_words))
+                                as f64
+                                / 2.0
+                        }
+                        RoundTime::FiveMin => {
+                            (self.word_index - (self.word_index - round_results.correct_words))
+                                as f64
+                                / 5.0
+                        }
                     };
                     let mut should_update = false;
                     if let Some(scores) = &self.top_scores {
                         if scores.len() < 10 || scores.iter().any(|s| wpm as usize > s.wpm_score) {
                             should_update = true;
-                        } 
+                        }
                     } else {
                         should_update = true;
                     }
                     if should_update {
                         let now = Local::now();
                         let date = now.format("%d-%m-%Y").to_string();
-                        self.update_leaderboard_file_contents(TopScore{date: date, wpm_score: wpm as usize});
+                        self.update_leaderboard_file_contents(TopScore {
+                            date: date,
+                            wpm_score: wpm as usize,
+                        });
                     }
                     self.current_screen = CurrentScreen::EndRound;
                     self.start_time = None;
@@ -334,82 +361,97 @@ impl App {
                 }
             }
             CurrentScreen::EndRound => {
-                match key_event.code {
-                    KeyCode::Char('q') => {
-                        self.exit = true;
+                // Disable key press for 1 Second post game end
+                let cooldown_start: Instant = Instant::now();
+                if cooldown_start.elapsed() >= Duration::from_secs(2) {
+                    match key_event.code {
+                        KeyCode::Char('q') => {
+                            self.exit = true;
+                        }
+                        KeyCode::Char('r') => {
+                            *self = App::new_with_config(self.config.clone()) // new app with custom config
+                        }
+                        KeyCode::Char('e') => {
+                            self.current_screen = CurrentScreen::ShowOptions;
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char('r') => {
-                        *self = App::new_with_config(self.config.clone()) // new app with custom config
+                } else {
+                    // Discard key press for first 1 sec to avoid accidental press
+                    if event::poll(Duration::from_millis(10)).unwrap() {
+                        let _ = event::read();
                     }
-                    KeyCode::Char('e') => {
-                        self.current_screen = CurrentScreen::ShowOptions; 
-                    }
-                    _ => {}
                 }
             }
-            CurrentScreen::ShowOptions => {
-                match key_event.code {
-                    KeyCode::Right | KeyCode::Char('l') => {
-                        match self.config.choice_index {
-                            0 => {
-                                match self.config.round_time_index {
-                                    3 => {self.config.round_time_index = 0;}
-                                    _ => {self.config.round_time_index += 1;}
-                                }
-                            }
-                            1 => {
-                                match self.config.text_theme_index {
-                                    3 => {self.config.text_theme_index = 0;}
-                                    _ => {self.config.text_theme_index += 1;}
-                                }
-                            }
-                            _ => {}
+            CurrentScreen::ShowOptions => match key_event.code {
+                KeyCode::Right | KeyCode::Char('l') => match self.config.choice_index {
+                    0 => match self.config.round_time_index {
+                        3 => {
+                            self.config.round_time_index = 0;
                         }
+                        _ => {
+                            self.config.round_time_index += 1;
+                        }
+                    },
+                    1 => match self.config.text_theme_index {
+                        3 => {
+                            self.config.text_theme_index = 0;
+                        }
+                        _ => {
+                            self.config.text_theme_index += 1;
+                        }
+                    },
+                    _ => {}
+                },
+                KeyCode::Left | KeyCode::Char('h') => match self.config.choice_index {
+                    0 => match self.config.round_time_index {
+                        0 => {
+                            self.config.round_time_index = 3;
+                        }
+                        _ => {
+                            self.config.round_time_index -= 1;
+                        }
+                    },
+                    1 => match self.config.text_theme_index {
+                        0 => {
+                            self.config.text_theme_index = 3;
+                        }
+                        _ => {
+                            self.config.text_theme_index -= 1;
+                        }
+                    },
+                    _ => {}
+                },
+                KeyCode::Down | KeyCode::Char('j') => match self.config.choice_index {
+                    0 => {
+                        self.config.choice_index = 1;
                     }
-                    KeyCode::Left | KeyCode::Char('h') => {
-                        match self.config.choice_index {
-                            0 => {
-                                match self.config.round_time_index {
-                                    0 => {self.config.round_time_index = 3;}
-                                    _ => {self.config.round_time_index -= 1;}
-                                }
-                            }
-                            1 => {
-                                match self.config.text_theme_index {
-                                    0 => {self.config.text_theme_index = 3;}
-                                    _ => {self.config.text_theme_index -= 1;}
-                                }
-                            }
-                            _ => {}
-                        }
+                    1 => {
+                        self.config.choice_index = 2;
                     }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        match self.config.choice_index {
-                            0 => {self.config.choice_index = 1;}
-                            1 => {self.config.choice_index = 2;}
-                            2 => {self.config.choice_index = 0;}
-                            _ => {}
-                        }
-                    }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        match self.config.choice_index {
-                            0 => {self.config.choice_index = 2;}
-                            1 => {self.config.choice_index = 0;}
-                            2 => {self.config.choice_index = 1;}
-                            _ => {}
-                        }
-                    }
-                    KeyCode::Enter => {
-                        match self.config.choice_index {
-                            2 => {
-                                self.current_screen = CurrentScreen::EndRound
-                            }
-                            _ => {self.config.choice_index = 2}
-                        }
+                    2 => {
+                        self.config.choice_index = 0;
                     }
                     _ => {}
-                }
-            }
+                },
+                KeyCode::Up | KeyCode::Char('k') => match self.config.choice_index {
+                    0 => {
+                        self.config.choice_index = 2;
+                    }
+                    1 => {
+                        self.config.choice_index = 0;
+                    }
+                    2 => {
+                        self.config.choice_index = 1;
+                    }
+                    _ => {}
+                },
+                KeyCode::Enter => match self.config.choice_index {
+                    2 => self.current_screen = CurrentScreen::EndRound,
+                    _ => self.config.choice_index = 2,
+                },
+                _ => {}
+            },
         }
     }
     fn next_word(&mut self) {
@@ -428,10 +470,32 @@ impl App {
         }
     }
     fn render_main(&self, area: Rect, buf: &mut Buffer) {
+        // App title
+        let title: &str = r#"
+▗▄▄▄▖▗▄▄▄▖▗▄▄▖ ▗▖  ▗▖▗▄▄▄▖▗▖  ▗▖ ▗▄▖ ▗▖       ▗▄▄▄▖▗▖  ▗▖▗▄▄▖ ▗▄▄▄▖
+  █  ▐▌   ▐▌ ▐▌▐▛▚▞▜▌  █  ▐▛▚▖▐▌▐▌ ▐▌▐▌         █   ▝▚▞▘ ▐▌ ▐▌▐▌   
+  █  ▐▛▀▀▘▐▛▀▚▖▐▌  ▐▌  █  ▐▌ ▝▜▌▐▛▀▜▌▐▌         █    ▐▌  ▐▛▀▘ ▐▛▀▀▘
+  █  ▐▙▄▄▖▐▌ ▐▌▐▌  ▐▌▗▄█▄▖▐▌  ▐▌▐▌ ▐▌▐▙▄▄▖      █    ▐▌  ▐▌   ▐▙▄▄▖
+        "#;
+        let title_style = Style::default()
+            .fg(Color::LightBlue)
+            .bg(Color::Black)
+            .bold();
+        let title_lines: Vec<Line> = title
+            .lines()
+            .map(|line| Line::from(Span::styled(line.to_string(), title_style)))
+            .collect();
+        let title_paragraph = Paragraph::new(Text::from(title_lines))
+            .block(Block::default())
+            .alignment(Alignment::Center);
         // Define grid layout
         let outer_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(100)])
+            .constraints(vec![
+                Constraint::Percentage(25),
+                Constraint::Percentage(60),
+                Constraint::Percentage(15),
+            ])
             .split(area);
         let inner_layout = Layout::default()
             .direction(Direction::Vertical)
@@ -440,7 +504,7 @@ impl App {
                 Constraint::Percentage(70),
                 Constraint::Percentage(15),
             ])
-            .split(outer_layout[0]);
+            .split(outer_layout[1]);
         let main_content_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
@@ -450,21 +514,12 @@ impl App {
             ])
             .split(inner_layout[1]);
         // Outer layer content
-        let title = Line::from(vec![
-            Span::styled(
-                "   TerminalType",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" | "),            
-            Span::styled(
-                "Type To Begin   ",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]);
+        let title = Line::from(vec![Span::styled(
+            "  Type To Begin  ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]);
         let instructions = Line::from(vec![
             Span::raw(" Time Remaining:"),
             Span::styled(
@@ -513,8 +568,8 @@ impl App {
                     let typed_char = self.typed_words.get(i).and_then(|w| w.chars().nth(j));
                     match typed_char {
                         Some(tc) if tc == c => Style::default().fg(Color::White), // correct
-                        Some(_) => Style::default().fg(Color::Red), // incorrect
-                        None => Style::default().fg(Color::DarkGray), // not typed
+                        Some(_) => Style::default().fg(Color::Red),               // incorrect
+                        None => Style::default().fg(Color::DarkGray),             // not typed
                     }
                 };
                 let span = Span::styled(c.to_string(), style);
@@ -541,8 +596,10 @@ impl App {
         let outer_paragraph = Paragraph::new(Text::from(""))
             .block(outer_block)
             .alignment(Alignment::Center);
-        outer_paragraph.render(outer_layout[0], buf);
+        outer_paragraph.render(outer_layout[1], buf);
 
+        // Title paragraph top of app
+        title_paragraph.render(outer_layout[0], buf);
         // Main content for game
         let main_paragraph = Paragraph::new(Text::from(lines))
             .block(main_content_block)
@@ -558,10 +615,7 @@ impl App {
             .split(area);
         let inner_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ])
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(outer_layout[0]);
         // Get statistics for output
         let round_type = match self.round_time {
@@ -570,13 +624,21 @@ impl App {
             RoundTime::TwoMin => "2 min round".to_string(),
             RoundTime::FiveMin => "5 min round".to_string(),
         };
-        let round_results = self.get_accuracy();        
+        let round_results = self.get_accuracy();
         let actual_wpm = match self.round_time {
-            RoundTime::Default => (self.word_index -(self.word_index - round_results.correct_words)) as f64 / 0.5,
-            RoundTime::Min => (self.word_index -(self.word_index - round_results.correct_words)) as f64,
-            RoundTime::TwoMin => (self.word_index -(self.word_index - round_results.correct_words)) as f64 / 2.0,
-            RoundTime::FiveMin => (self.word_index -(self.word_index - round_results.correct_words)) as f64 / 5.0,
-        };        
+            RoundTime::Default => {
+                (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 0.5
+            }
+            RoundTime::Min => {
+                (self.word_index - (self.word_index - round_results.correct_words)) as f64
+            }
+            RoundTime::TwoMin => {
+                (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 2.0
+            }
+            RoundTime::FiveMin => {
+                (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 5.0
+            }
+        };
         let raw_wpm = match self.round_time {
             RoundTime::Default => self.word_index as f64 / 0.5,
             RoundTime::Min => self.word_index as f64,
@@ -584,22 +646,16 @@ impl App {
             RoundTime::FiveMin => self.word_index as f64 / 5.0,
         };
         // Top left block for round stats
-        let top_left_title = Line::from(vec![
-            Span::styled(
-                " Round Summary ",
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-            )
-        ]);
+        let top_left_title = Line::from(vec![Span::styled(
+            " Round Summary ",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )]);
         let top_left_block = Block::default()
             .title(top_left_title)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let user_stats = Text::from(vec![
-            Line::from(vec![
-                Span::raw("")
-            ]),
+            Line::from(vec![Span::raw("")]),
             Line::from(vec![
                 Span::styled(
                     format!("WPM: "),
@@ -608,11 +664,11 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!("{}",actual_wpm),
+                    format!("{}", actual_wpm),
                     Style::default()
                         .fg(Color::Green)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -623,11 +679,11 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!("{}",raw_wpm),
+                    format!("{}", raw_wpm),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -642,9 +698,9 @@ impl App {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
-            .centered(),            
+            .centered(),
             Line::from(vec![
                 Span::styled(
                     format!("CHAR ACCURACY: "),
@@ -657,7 +713,7 @@ impl App {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -672,7 +728,7 @@ impl App {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -681,13 +737,13 @@ impl App {
                     Style::default()
                         .fg(Color::White)
                         .add_modifier(Modifier::BOLD),
-                ),                
+                ),
                 Span::styled(
                     format!("{}", round_results.correct_words),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -696,13 +752,13 @@ impl App {
                     Style::default()
                         .fg(Color::White)
                         .add_modifier(Modifier::BOLD),
-                ),       
+                ),
                 Span::styled(
                     format!("{}", round_results.total_chars),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -711,13 +767,13 @@ impl App {
                     Style::default()
                         .fg(Color::White)
                         .add_modifier(Modifier::BOLD),
-                ), 
+                ),
                 Span::styled(
                     format!("{}", round_results.correct_chars),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
             Line::from(vec![
@@ -732,7 +788,7 @@ impl App {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                )
+                ),
             ])
             .centered(),
         ]);
@@ -741,14 +797,10 @@ impl App {
             .alignment(Alignment::Center);
         stats_paragraph.render(inner_layout[0], buf);
         // Top right block for leader boardlet
-        let top_right_title = Line::from(vec![
-            Span::styled(
-                " Leaderboard ",
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-            )
-        ]);
+        let top_right_title = Line::from(vec![Span::styled(
+            " Leaderboard ",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )]);
         let top_right_block = Block::default()
             .title(top_right_title)
             .borders(Borders::ALL)
@@ -759,7 +811,7 @@ impl App {
             for (i, score) in scores.iter().enumerate() {
                 let line = Line::from(vec![
                     Span::styled(
-                        format!("{}: ", (i+1)),
+                        format!("{}: ", (i + 1)),
                         Style::default()
                             .fg(Color::White)
                             .add_modifier(Modifier::BOLD),
@@ -775,8 +827,9 @@ impl App {
                         Style::default()
                             .fg(Color::Yellow)
                             .add_modifier(Modifier::BOLD),
-                    )
-                ]).centered();
+                    ),
+                ])
+                .centered();
                 leaderboard_lines.push(line);
             }
         } else {
@@ -787,23 +840,17 @@ impl App {
             .block(top_right_block)
             .alignment(Alignment::Center);
         leaderboard_paragraph.render(inner_layout[1], buf);
-        // Bottom block for user options        
-        let bottom_title = Line::from(vec![
-            Span::styled(
-                " User Options ",
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-            )
-        ]); 
+        // Bottom block for user options
+        let bottom_title = Line::from(vec![Span::styled(
+            " User Options ",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )]);
         let bottom_block = Block::default()
             .title(bottom_title)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
         let user_options = Text::from(vec![
-            Line::from(vec![
-                Span::raw("")
-            ]),
+            Line::from(vec![Span::raw("")]),
             Line::from(vec![
                 Span::styled(
                     format!("Press "),
@@ -816,7 +863,7 @@ impl App {
                     Style::default()
                         .fg(Color::Green)
                         .add_modifier(Modifier::BOLD),
-                ), 
+                ),
                 Span::styled(
                     format!(" to play again"),
                     Style::default()
@@ -837,7 +884,7 @@ impl App {
                     Style::default()
                         .fg(Color::Green)
                         .add_modifier(Modifier::BOLD),
-                ),                
+                ),
                 Span::styled(
                     format!(" to edit user config"),
                     Style::default()
@@ -845,7 +892,7 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
             ])
-            .centered(),            
+            .centered(),
             Line::from(vec![
                 Span::styled(
                     format!("Press "),
@@ -858,7 +905,7 @@ impl App {
                     Style::default()
                         .fg(Color::Green)
                         .add_modifier(Modifier::BOLD),
-                ),                
+                ),
                 Span::styled(
                     format!(" to quit terminal"),
                     Style::default()
@@ -868,7 +915,7 @@ impl App {
             ])
             .centered(),
         ]);
-       
+
         let bottom_paragraph = Paragraph::new(user_options)
             .block(bottom_block)
             .alignment(Alignment::Center);
@@ -891,14 +938,12 @@ impl App {
                 Constraint::Percentage(30),
             ])
             .split(outer_layout[1]);
-        let title = Line::from(vec![
-            Span::styled(
-                format!(" User Config "),
-                Style::default()
-                    .fg(Color::Blue)
-                    .add_modifier(Modifier::BOLD)
-            )
-        ]);
+        let title = Line::from(vec![Span::styled(
+            format!(" User Config "),
+            Style::default()
+                .fg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+        )]);
         let options_block = Block::default()
             .title(title.centered())
             .borders(Borders::ALL)
@@ -907,57 +952,75 @@ impl App {
         let text_theme_options = vec!["Default", "Lorem Ipsum", "Technology", "Food"];
         let options_text = Text::from(vec![
             Line::from(vec![Span::raw("")]),
-            Line::from(vec![
-                Span::styled(
-                    format!("Round Time"),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::UNDERLINED),
-                ),
-            ]),
+            Line::from(vec![Span::styled(
+                format!("Round Time"),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::UNDERLINED),
+            )]),
             Line::from(vec![Span::raw("")]),
             Line::from(vec![
                 Span::raw("< "),
                 Span::styled(
                     format!("{}", round_time_options[self.config.round_time_index]),
                     Style::default()
-                        .fg(if self.config.choice_index == 0 {Color::Black} else {Color::White})
-                        .bg(if self.config.choice_index == 0 {Color::LightBlue} else {Color::Reset})
+                        .fg(if self.config.choice_index == 0 {
+                            Color::Black
+                        } else {
+                            Color::White
+                        })
+                        .bg(if self.config.choice_index == 0 {
+                            Color::LightBlue
+                        } else {
+                            Color::Reset
+                        })
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(" >"),
             ]),
             Line::from(vec![Span::raw("")]),
-            Line::from(vec![
-                Span::styled(
-                    format!("Word Theme"),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::UNDERLINED),
-                ),
-            ]),
+            Line::from(vec![Span::styled(
+                format!("Word Theme"),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::UNDERLINED),
+            )]),
             Line::from(vec![Span::raw("")]),
             Line::from(vec![
                 Span::raw("< "),
                 Span::styled(
                     format!("{}", text_theme_options[self.config.text_theme_index]),
                     Style::default()
-                        .fg(if self.config.choice_index == 1 {Color::Black} else {Color::White})
-                        .bg(if self.config.choice_index == 1 {Color::LightBlue} else {Color::Reset})
+                        .fg(if self.config.choice_index == 1 {
+                            Color::Black
+                        } else {
+                            Color::White
+                        })
+                        .bg(if self.config.choice_index == 1 {
+                            Color::LightBlue
+                        } else {
+                            Color::Reset
+                        })
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(" >"),
             ]),
             Line::from(vec![Span::raw("")]),
-            Line::from(vec![
-                Span::styled(
-                    format!("Save"),
-                    Style::default()
-                    .fg(if self.config.choice_index == 2 {Color::Black} else {Color::White})
-                    .bg(if self.config.choice_index == 2 {Color::Yellow} else {Color::Reset})
+            Line::from(vec![Span::styled(
+                format!("Save"),
+                Style::default()
+                    .fg(if self.config.choice_index == 2 {
+                        Color::Black
+                    } else {
+                        Color::White
+                    })
+                    .bg(if self.config.choice_index == 2 {
+                        Color::Green
+                    } else {
+                        Color::Reset
+                    })
                     .add_modifier(Modifier::BOLD),
-                ),
-            ]),
+            )]),
         ]);
         let options_paragraph = Paragraph::new(options_text)
             .block(options_block)
@@ -1012,11 +1075,11 @@ impl App {
         return res;
     }
     fn get_leaderboard_file_contents() -> Option<Vec<TopScore>> {
-        // Get file path 
+        // Get file path
         let home_dir = dirs::home_dir()?;
         let leaderboard_file_path = home_dir.join(".local/share/TerminalType/leaderboard.txt");
         let contents = fs::read_to_string(leaderboard_file_path).ok()?;
-        if contents.trim().is_empty(){
+        if contents.trim().is_empty() {
             return None;
         }
 
@@ -1027,7 +1090,7 @@ impl App {
             let date = parts.next()?;
             let wpm_str = parts.next()?;
             let wpm_value = wpm_str.parse::<usize>().ok()?;
-            top_scores.push(TopScore{
+            top_scores.push(TopScore {
                 date: date.to_string(),
                 wpm_score: wpm_value,
             });
@@ -1041,7 +1104,7 @@ impl App {
         }
     }
     fn update_leaderboard_file_contents(&self, new_top_score: TopScore) {
-        // Get file path 
+        // Get file path
         let home_dir = match dirs::home_dir() {
             Some(dir) => dir,
             None => return,
