@@ -380,6 +380,7 @@ impl App {
                                 *self = App::new_with_config(self.config.clone()) // new app with custom config
                             }
                             KeyCode::Char('e') => {
+                                self.cooldown_start = None;
                                 self.current_screen = CurrentScreen::ShowOptions;
                             }
                             _ => {}
