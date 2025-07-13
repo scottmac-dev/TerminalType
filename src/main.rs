@@ -41,6 +41,63 @@ pub enum TextTheme {
     Tech,
     Food,
 }
+impl TextTheme {
+    pub fn word_list(&self) -> Vec<&'static str> {
+        match self {
+            TextTheme::Default => vec![
+                "river", "flag", "grit", "yellow", "bounce", "flight", "shallow", "habit",
+                "flame", "wander", "pocket", "scrap", "blink", "canvas", "grind", "foggy",
+                "stream", "patrol", "branch", "tunnel", "window", "brief", "orbit", "sand",
+                "melt", "parade", "cliff", "border", "charge", "wild", "pepper", "crack",
+                "shelter", "gentle", "prize", "canyon", "loop", "motion", "splash", "note",
+                "tiger", "shade", "glimpse", "cradle", "velvet", "bucket", "slide", "curve",
+                "dizzy", "ladder", "brick", "shadow", "humble", "filter", "stride", "clamp",
+                "rugged", "narrow", "float", "puzzle", "string", "burst", "echo", "gleam",
+                "rust", "maze", "spark", "anchor", "gravel", "tremble", "whirl", "scrape",
+                "dwell", "crisp", "shiver", "badge", "frame", "cloak", "drift", "sketch",
+            ],
+            TextTheme::Lorem => vec![
+                "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
+                "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore", "et",
+                "dolore", "magna", "aliqua", "enim", "ad", "minim", "veniam", "quis",
+                "nostrud", "exercitation", "ullamco", "laboris", "nisi", "aliquip", "ex",
+                "ea", "commodo", "consequat", "duis", "aute", "irure", "in", "reprehenderit",
+                "voluptate", "velit", "esse", "cillum", "eu", "fugiat", "nulla", "pariatur",
+                "excepteur", "sint", "occaecat", "cupidatat", "non", "proident", "sunt",
+                "in", "culpa", "qui", "officia", "deserunt", "mollit", "anim", "id",
+                "est", "laborum", "pellentesque", "habitant", "morbi", "tristique", "senectus",
+                "netus", "fames", "egestas", "vestibulum", "turpis", "porta", "ac", "rutrum",
+                "ultricies", "tellus", "interdum", "feugiat",
+            ],
+            TextTheme::Tech => vec![
+                "protocol", "server", "network", "buffer", "compile", "binary", "virtual",
+                "hardware", "syntax", "bytecode", "encryption", "router", "packet", "socket",
+                "script", "kernel", "command", "thread", "function", "object", "method",
+                "memory", "cache", "firewall", "stack", "array", "boolean", "debugger",
+                "monitor", "driver", "firmware", "algorithm", "bitrate", "latency", "backend",
+                "frontend", "database", "cluster", "token", "gateway", "docker", "branch",
+                "commit", "push", "pull", "fork", "instance", "queue", "runtime", "lambda",
+                "process", "render", "shader", "sandbox", "version", "editor", "module",
+                "update", "login", "crypto", "threading", "cloud", "endpoint", "input",
+                "output", "integer", "float", "pixel", "vector", "api", "node", "scripted",
+                "pipeline", "session", "wrapper", "class", "static", "mutex", "ping",
+            ],
+            TextTheme::Food => vec![
+                "banana", "broccoli", "carrot", "pasta", "basil", "sausage", "chili", "turmeric",
+                "cinnamon", "almond", "avocado", "sushi", "taco", "burrito", "noodle", "curry",
+                "cocoa", "flour", "muffin", "bagel", "popcorn", "ginger", "apple", "spinach",
+                "cheddar", "gravy", "honey", "pudding", "crumble", "risotto", "asparagus",
+                "pancake", "hazelnut", "pomegranate", "licorice", "ravioli", "beetroot",
+                "peanut", "walnut", "toffee", "casserole", "scone", "omelette", "truffle",
+                "pesto", "butter", "ketchup", "pickle", "barbecue", "meatball", "zucchini",
+                "anchovy", "custard", "steak", "salmon", "parmesan", "tomato", "grapefruit",
+                "lemon", "lime", "syrup", "croissant", "crepe", "waffle", "espresso",
+                "latte", "mocha", "cupcake", "cherry", "blueberry", "mango", "plum", "fig",
+                "kiwi", "cabbage", "fennel", "turnip", "radish",
+            ],
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TopScore {
     pub date: String,
@@ -80,57 +137,8 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let words_list = vec![
-            "hello",
-            "world",
-            "type",
-            "rust",
-            "juice",
-            "the",
-            "lazy",
-            "dog",
-            "jumped",
-            "over",
-            "sleeping",
-            "fox",
-            "disgrace",
-            "snap",
-            "crop",
-            "pot",
-            "sound",
-            "amber",
-            "code",
-            "intelligence",
-            "chicken",
-            "soup",
-            "tower",
-            "dough",
-            "normal",
-            "speed",
-            "better",
-            "minute",
-            "best",
-            "ever",
-            "to",
-            "and",
-            "when",
-            "by",
-            "learn",
-            "code",
-            "gain",
-            "buffer",
-            "money",
-            "start",
-            "stop",
-            "write",
-            "food",
-            "gym",
-            "vector",
-            "monkey",
-            "through",
-            "threw",
-            "undo",
-        ];
+        let text_theme = TextTheme::Default;
+        let words_list = text_theme.word_list();
         let mut rng = rand::rng();
         let target_words = (0..50)
             .map(|_| words_list.choose(&mut rng).unwrap().to_string())
@@ -1144,6 +1152,12 @@ impl App {
             }
             Err(e) => eprintln!("Failed to open leaderboard.txt: {}", e),
         }
+    }
+    fn generate_words(words: &[&str], count: usize) -> Vec<String> {
+        let mut rng = rand::rng();
+        (0..count)
+            .map(|_| words.choose(&mut rng).unwrap().to_string())
+            .collect()
     }
 }
 impl Widget for &App {
