@@ -6,12 +6,13 @@ use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
     prelude::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     symbols::border,
     text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Paragraph, Widget},
 };
 use std::{
+    collections::VecDeque,
     fs::{self, File},
     io::{self, Write},
     time::{Duration, Instant},
@@ -56,7 +57,7 @@ impl TextTheme {
                 "gravel", "tremble", "whirl", "scrape", "dwell", "crisp", "shiver", "badge",
                 "frame", "cloak", "drift", "sketch", "and", "to", "by", "when", "see", "went",
                 "why", "going", "because", "from", "did", "he", "she", "them", "pass", "type",
-                "of", "style", "run", "walk",
+                "of", "style", "run", "walk", "gym", "try", "people", "alien", "horse",
             ],
             TextTheme::Lorem => vec![
                 "lorem",
@@ -221,6 +222,21 @@ impl TextTheme {
                 "static",
                 "mutex",
                 "ping",
+                "bit",
+                "send",
+                "bug",
+                "code",
+                "java",
+                "rust",
+                "script",
+                "hack",
+                "future",
+                "neuron",
+                "optimize",
+                "discover",
+                "laptop",
+                "linux",
+                "distributed",
             ],
             TextTheme::Food => vec![
                 "banana",
@@ -301,6 +317,17 @@ impl TextTheme {
                 "fennel",
                 "turnip",
                 "radish",
+                "eat",
+                "yum",
+                "tasty",
+                "cook",
+                "chef",
+                "season",
+                "spice",
+                "salt",
+                "sauce",
+                "juice",
+                "dine",
             ],
         }
     }
@@ -346,7 +373,7 @@ impl App {
     pub fn new() -> Self {
         let text_theme = TextTheme::Default;
         let words_list = text_theme.word_list();
-        let target_words = generate_words(&words_list, 50);
+        let target_words = generate_words(&words_list, 60);
         Self {
             char_index: 0,
             word_index: 0,
@@ -376,7 +403,7 @@ impl App {
             _ => panic!("Invalid text_theme_index {}", config.text_theme_index),
         };
         let words_list = text_theme.word_list();
-        let target_words = generate_words(&words_list, 50);
+        let target_words = generate_words(&words_list, 60);
         let time_remaining = match config.round_time_index {
             0 => 30,
             1 => 60,
@@ -534,9 +561,9 @@ impl App {
                 if self.cooldown_start.is_none() {
                     self.cooldown_start = Some(Instant::now());
                 }
-                // Disable key press for 0.25 sec post game end
+                // Disable key press for 0.1 sec post game end
                 if let Some(start) = self.cooldown_start {
-                    if start.elapsed() >= Duration::from_millis(250) {
+                    if start.elapsed() >= Duration::from_millis(100) {
                         // Enable
                         match key_event.code {
                             KeyCode::Char('q') => {
@@ -1321,12 +1348,31 @@ impl Widget for &App {
         }
     }
 }
-// Extract certain length of word from list
+// Extract certain length of words from a list
 fn generate_words(words: &[&str], count: usize) -> Vec<String> {
     let mut rng = rand::rng();
-    (0..count)
-        .map(|_| words.choose(&mut rng).unwrap().to_string())
-        .collect()
+    let mut past_ten_words = VecDeque::new();
+    let mut random_words = Vec::new();
+    while random_words.len() < count {
+        let word = words.choose(&mut rng).unwrap().to_string();
+        if past_ten_words.len() < 10 {
+            if past_ten_words.contains(&word) {
+                continue;
+            } else {
+                past_ten_words.push_back(word.clone());
+                random_words.push(word);
+            }
+        } else {
+            if past_ten_words.contains(&word) {
+                continue;
+            } else {
+                past_ten_words.pop_front();
+                past_ten_words.push_back(word.clone());
+                random_words.push(word);
+            }
+        }
+    }
+    return random_words;
 }
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
