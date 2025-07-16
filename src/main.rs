@@ -32,7 +32,6 @@ pub enum RoundTime {
     Default,
     Min,
     TwoMin,
-    FiveMin,
 }
 #[derive(Debug, Default)]
 pub enum TextTheme {
@@ -408,7 +407,6 @@ impl App {
             0 => 30,
             1 => 60,
             2 => 120,
-            3 => 300,
             _ => {
                 panic!("Invalid round_time_index {}", config.round_time_index);
             }
@@ -417,7 +415,6 @@ impl App {
             0 => RoundTime::Default,
             1 => RoundTime::Min,
             2 => RoundTime::TwoMin,
-            3 => RoundTime::FiveMin,
             _ => {
                 panic!("Invalid round_time_index {}", config.round_time_index);
             }
@@ -490,11 +487,6 @@ impl App {
                             (self.word_index - (self.word_index - round_results.correct_words))
                                 as f64
                                 / 2.0
-                        }
-                        RoundTime::FiveMin => {
-                            (self.word_index - (self.word_index - round_results.correct_words))
-                                as f64
-                                / 5.0
                         }
                     };
                     let mut should_update = false;
@@ -589,7 +581,7 @@ impl App {
             CurrentScreen::ShowOptions => match key_event.code {
                 KeyCode::Right | KeyCode::Char('l') => match self.config.choice_index {
                     0 => match self.config.round_time_index {
-                        3 => {
+                        2 => {
                             self.config.round_time_index = 0;
                         }
                         _ => {
@@ -609,7 +601,7 @@ impl App {
                 KeyCode::Left | KeyCode::Char('h') => match self.config.choice_index {
                     0 => match self.config.round_time_index {
                         0 => {
-                            self.config.round_time_index = 3;
+                            self.config.round_time_index = 2;
                         }
                         _ => {
                             self.config.round_time_index -= 1;
@@ -660,9 +652,11 @@ impl App {
     fn next_word(&mut self) {
         self.word_index += 1;
         self.char_index = 0;
-
         if self.typed_words.len() <= self.word_index {
             self.typed_words.push(String::new());
+        }
+        if self.typed_words.len() > self.target_words.len() - 20 {
+            self.extend_lines();
         }
     }
     fn prev_word(&mut self) {
@@ -671,6 +665,11 @@ impl App {
             self.word_index -= 1;
             self.char_index = self.typed_words[self.word_index].len();
         }
+    }
+    fn extend_lines(&mut self) {
+        let word_list = self.text_theme.word_list();
+        let extension_words = generate_words(&word_list, 30);
+        self.target_words.extend(extension_words);
     }
     fn render_main(&self, area: Rect, buf: &mut Buffer) {
         // App title
@@ -783,14 +782,14 @@ impl App {
                 lines.push(Line::from(current_line));
                 current_line = vec![];
                 current_width = 0;
+                // start clearing top line after 8 written
+                if lines.len() >= 8 {
+                    lines.remove(0);
+                }
             }
 
             current_line.extend(word_spans);
             current_width += word_width;
-        }
-
-        if !current_line.is_empty() {
-            lines.push(Line::from(current_line));
         }
         // Blank outer template
         let outer_paragraph = Paragraph::new(Text::from(""))
@@ -822,7 +821,6 @@ impl App {
             RoundTime::Default => "30s round".to_string(),
             RoundTime::Min => "1 min round".to_string(),
             RoundTime::TwoMin => "2 min round".to_string(),
-            RoundTime::FiveMin => "5 min round".to_string(),
         };
         let round_results = self.get_accuracy();
         let actual_wpm = match self.round_time {
@@ -835,15 +833,11 @@ impl App {
             RoundTime::TwoMin => {
                 (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 2.0
             }
-            RoundTime::FiveMin => {
-                (self.word_index - (self.word_index - round_results.correct_words)) as f64 / 5.0
-            }
         };
         let raw_wpm = match self.round_time {
             RoundTime::Default => self.word_index as f64 / 0.5,
             RoundTime::Min => self.word_index as f64,
             RoundTime::TwoMin => self.word_index as f64 / 2.0,
-            RoundTime::FiveMin => self.word_index as f64 / 5.0,
         };
         // Top left block for round stats
         let top_left_title = Line::from(vec![Span::styled(
@@ -1148,7 +1142,7 @@ impl App {
             .title(title.centered())
             .borders(Borders::ALL)
             .border_set(border::THICK);
-        let round_time_options = vec!["30 Seconds", "1 Minute", "2 Minute", "5 Minute"];
+        let round_time_options = vec!["30 Seconds", "1 Minute", "2 Minute"];
         let text_theme_options = vec!["Default", "Lorem Ipsum", "Technology", "Food"];
         let options_text = Text::from(vec![
             Line::from(vec![Span::raw("")]),
@@ -1233,7 +1227,6 @@ impl App {
             RoundTime::Default => return 30,
             RoundTime::Min => return 60,
             RoundTime::TwoMin => return 120,
-            RoundTime::FiveMin => return 300,
         }
     }
     fn get_accuracy(&self) -> RoundResult {
