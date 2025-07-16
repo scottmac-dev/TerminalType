@@ -58,6 +58,12 @@ impl TextTheme {
                 "frame", "cloak", "drift", "sketch", "and", "to", "by", "when", "see", "went",
                 "why", "going", "because", "from", "did", "he", "she", "them", "pass", "type",
                 "of", "style", "run", "walk", "gym", "try", "people", "alien", "horse",
+                "marble", "cactus", "blanket", "owl", "plunge", "jigsaw", "mirror", "sneeze", "lantern",
+                "drizzle", "planet", "hazard", "bucket", "napkin", "monkey", "trick", "castle", "windowpane",
+                "cloudy", "teapot", "marsh", "spoon", "ticket", "plasma", "garage", "acorn", "swing",
+                "flicker", "giant", "nibble", "timber", "compass", "snore", "zipper", "yawn", "pebble",
+                "harbor", "waffle", "candle", "basement", "knock", "murmur", "doodle", "stairs", "plank",
+                "groove", "tinsel", "shrug", "breeze", "helmet",
             ],
             TextTheme::Lorem => vec![
                 "lorem",
@@ -237,6 +243,57 @@ impl TextTheme {
                 "laptop",
                 "linux",
                 "distributed",
+                "terminal",
+                "protocols",
+                "boolean",
+                "overflow",
+                "index",
+                "tokenize",
+                "pointer",
+                "emulator",
+                "container",
+                "firmware",
+                "registry",
+                "framework",
+                "decompile",
+                "syntax",
+                "debug",
+                "bitwise",
+                "microchip",
+                "kernelspace",
+                "iteration",
+                "recursion",
+                "heap",
+                "stacktrace",
+                "opcode",
+                "bootloader",
+                "repository",
+                "hypervisor",
+                "threadsafe",
+                "permissions",
+                "clipboard",
+                "clipboard",
+                "filesystem",
+                "hotfix",
+                "interface",
+                "interrupt",
+                "macro",
+                "hashmap",
+                "tokenizer",
+                "graphql",
+                "typescript",
+                "npm",
+                "socketio",
+                "firestore",
+                "environ",
+                "hostname",
+                "whitespace",
+                "compression",
+                "checksum",
+                "uptime",
+                "localhost",
+                "rollback",
+                "benchmark",
             ],
             TextTheme::Food => vec![
                 "banana",
@@ -328,6 +385,56 @@ impl TextTheme {
                 "sauce",
                 "juice",
                 "dine",
+                "brisket",
+                "coconut",
+                "mustard",
+                "granola",
+                "clove",
+                "noodles",
+                "peach",
+                "bruschetta",
+                "fondue",
+                "sorbet",
+                "jerky",
+                "calamari",
+                "gouda",
+                "yogurt",
+                "paprika",
+                "lentil",
+                "okra",
+                "shallot",
+                "tamarind",
+                "caper",
+                "durian",
+                "gnocchi",
+                "kombucha",
+                "kale",
+                "brandy",
+                "cider",
+                "miso",
+                "kimchi",
+                "edamame",
+                "quinoa",
+                "arugula",
+                "crouton",
+                "tart",
+                "tofu",
+                "aioli",
+                "hummus",
+                "paella",
+                "meringue",
+                "shrimp",
+                "bacon",
+                "ramen",
+                "chowder",
+                "schnitzel",
+                "coleslaw",
+                "baguette",
+                "prawn",
+                "margarine",
+                "lollipop",
+                "veal",
+                "churro",
             ],
         }
     }
@@ -554,9 +661,9 @@ impl App {
                 if self.cooldown_start.is_none() {
                     self.cooldown_start = Some(Instant::now());
                 }
-                // Disable key press for 0.1 sec post game end
+                // Disable key press for 0.05 sec post game end
                 if let Some(start) = self.cooldown_start {
-                    if start.elapsed() >= Duration::from_millis(100) {
+                    if start.elapsed() >= Duration::from_millis(50) {
                         // Enable
                         match key_event.code {
                             KeyCode::Char('q') => {
@@ -573,7 +680,7 @@ impl App {
                         }
                     } else {
                         // Discard key press
-                        if event::poll(Duration::from_millis(50)).unwrap() {
+                        if event::poll(Duration::from_millis(10)).unwrap() {
                             let _ = event::read();
                         }
                     }
@@ -679,8 +786,8 @@ impl App {
   █  ▐▌   ▐▌ ▐▌▐▛▚▞▜▌  █  ▐▛▚▖▐▌▐▌ ▐▌▐▌         █   ▝▚▞▘ ▐▌ ▐▌▐▌   
   █  ▐▛▀▀▘▐▛▀▚▖▐▌  ▐▌  █  ▐▌ ▝▜▌▐▛▀▜▌▐▌         █    ▐▌  ▐▛▀▘ ▐▛▀▀▘
   █  ▐▙▄▄▖▐▌ ▐▌▐▌  ▐▌▗▄█▄▖▐▌  ▐▌▐▌ ▐▌▐▙▄▄▖      █    ▐▌  ▐▌   ▐▙▄▄▖
-        "#;
-        let title_style = Style::default().fg(Color::LightBlue).bg(Color::Black);
+"#;
+        let title_style = Style::default().fg(Color::LightBlue).bg(Color::default());
         let title_lines: Vec<Line> = title
             .lines()
             .map(|line| Line::from(Span::styled(line.to_string(), title_style)))
@@ -729,21 +836,21 @@ impl App {
                 .add_modifier(Modifier::BOLD),
         )]);
         let instructions = Line::from(vec![
-            Span::raw(" Time Remaining:"),
+            Span::raw(" Time Remaining: "),
             Span::styled(
                 self.time_remaining.to_string(),
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw("  |  Words Typed:"),
+            Span::raw("  |  Words Typed: "),
             Span::styled(
                 self.word_index.to_string(),
                 Style::default()
                     .fg(Color::Green)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw("  |  Quit:"),
+            Span::raw("  |  Quit: "),
             Span::styled(
                 " <Ctrl + C> ",
                 Style::default()
@@ -913,7 +1020,7 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!("{:.1}%", round_results.percentage_words),
+                    format!("{:.1} %", round_results.percentage_words),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
@@ -928,7 +1035,7 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!("{:.1}%", round_results.percentage_chars),
+                    format!("{:.1} %", round_results.percentage_chars),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
