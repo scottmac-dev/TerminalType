@@ -16,6 +16,7 @@ use std::{
     fs::{self, File},
     io::{self, Write},
     time::{Duration, Instant},
+    vec,
 };
 use unicode_width::UnicodeWidthStr;
 
@@ -696,6 +697,14 @@ impl App {
                 Constraint::Percentage(15),
             ])
             .split(area);
+        let padding_width = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Percentage(5),
+                Constraint::Percentage(90),
+                Constraint::Percentage(5),
+            ])
+            .split(outer_layout[1]);
         let inner_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
@@ -703,7 +712,7 @@ impl App {
                 Constraint::Percentage(70),
                 Constraint::Percentage(15),
             ])
-            .split(outer_layout[1]);
+            .split(padding_width[1]);
         let main_content_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
@@ -795,7 +804,7 @@ impl App {
         let outer_paragraph = Paragraph::new(Text::from(""))
             .block(outer_block)
             .alignment(Alignment::Center);
-        outer_paragraph.render(outer_layout[1], buf);
+        outer_paragraph.render(padding_width[1], buf);
 
         // Title paragraph top of app
         title_paragraph.render(outer_layout[0], buf);
@@ -808,10 +817,26 @@ impl App {
     }
     fn render_end_screen(&self, area: Rect, buf: &mut Buffer) {
         // Define area grid layout
+        let padding_height = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Percentage(10),
+                Constraint::Percentage(80),
+                Constraint::Percentage(10),
+            ])
+            .split(area);
+        let padding_width = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Percentage(10),
+                Constraint::Percentage(80),
+                Constraint::Percentage(10),
+            ])
+            .split(padding_height[1]);
         let outer_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
-            .split(area);
+            .split(padding_width[1]);
         let inner_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
