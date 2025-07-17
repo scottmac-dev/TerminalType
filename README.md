@@ -4,6 +4,8 @@
 
 It’s designed as a fun way to help you improve your typing speed and accuracy directly from the terminal.
 
+![TUI Screenshot](terminal-type.png)
+
 ## 💾 Installation
 ### Prerequisites
 
