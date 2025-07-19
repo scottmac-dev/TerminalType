@@ -71,7 +71,10 @@ Always down for feedback, relatively new to Rust so probably alot that could be 
 If you like the app give it a ⭐
 
 ## 🔮 Future
-A few things I would be keen to implement in an ideal world.
+A few things I would be keen to implement.
 - Colour theme selection in user config options
 - A smoother transition for extending lines when adding more words to keep the cursor in the same position
 - Testing 🥲
+
+## Bug Report
+- Doesnt alert user to CAPS LOCK ON
